@@ -3,35 +3,48 @@
 from ngboost.distns.distn import RegressionDistn
 from ngboost.scores import LogScore
 
+
 def MultivariateSkewt(k):
     
     class K_VariateSkewt(RegressionDistn):
 
         n_params = None # NEEDS DEFINING AS A FUNCTION OF K
+        score = [MultivariateSkewtLogScore]
+        multi_output = True
         
         def __init__(self, params):
-            self.score = [MultivariateSkewtLogScore]
-            self.n_params = None # NEEDS DEFINING
+            super().__init__(params)
             self._params = params
             self.dist = None # NEEDS DEFINING
+
+            # --- parameter-related attributed --- #
 
         @property
         def param(self):
             return {} # NEEDS DEFINING
-        
-        def fit(self):
+
+        # ====== DISTRIBUTION IMPLEMENTATION ====== #
+        def logpdf(self,Y):
             pass
 
-        def sample(self):
+        def rv(self):
+            pass
+
+        # ========================================= #
+        def fit(Y):
+            pass
+
+        def sample(self,m):
             pass
 
         def mean(self):
             pass
+
     return K_VariateSkewt
 
 class MultivariateSkewtLogScore(LogScore):
     def score(self,Y):
-       return -self.dist.logpdf(Y)
+       return -self.logpdf(Y)
     
     def d_score(self,Y):
         pass
