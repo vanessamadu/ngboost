@@ -14,14 +14,18 @@ def MultivariateSkewt(k):
         
         def __init__(self, params):
             super().__init__(params)
-            self._params = params
-            self.dist = None # NEEDS DEFINING
-
             # --- parameter-related attributed --- #
+            self.loc = params[0:k]
+            self.skew = params[k:2*k]
+            self.df = params[2*k+1]
+            self.disp = params[2*k+2:]
 
         @property
-        def param(self):
-            return {} # NEEDS DEFINING
+        def params(self):
+            return {'loc':self.loc,
+                    'skew':self.skew,
+                    'df':self.df,
+                    'disp':self.disp}
 
         # ====== DISTRIBUTION IMPLEMENTATION ====== #
         def logpdf(self,Y):
