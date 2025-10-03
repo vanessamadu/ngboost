@@ -1,45 +1,51 @@
 """The NGBoost multivariate skew-t distribution and scores"""
 
 from ngboost.distns.distn import RegressionDistn
+from ngboost.distns.utils import cholesky_factor
 from ngboost.scores import LogScore
 import numpy as np
-from scipy import stats, special
+from scipy import special
 
 
 def MultivariateSkewt(k):
     
     class K_VariateSkewt(RegressionDistn):
 
-        n_params = (k+4)*(k+1)/2 - 1
+        n_params = int((k + 4) * (k + 1) / 2 - 1)
         score = [MultivariateSkewtLogScore]
         multi_output = True
         
         def __init__(self, params):
             super().__init__(params)
-            self.dim = k
-            # ------ parameter-related attributed ------ #
-            self.loc = params[0:k]
-            self.skew = params[k:2*k]
-            self.df = params[2*k+1]
-            self.A = params[2*k+2:]
-            # ------------------------------------------ #
+            self.dim = int(k)
+            self.n_data = int(params.shape[1])
+
+            # ------ parameter attributes ------ #
+            self.loc = params[0:k,:]
+            self.skew = params[k:2*k,:]
+            self.df = params[2*k+1,:]
+            self.A_lower_triangle = params[2*k+2:,:]
+
+            # === related attributes === #
+            self.A = cholesky_factor(self.A_lower_triangle)
+
+            # ---------------------------------- #
 
         @property
         def params(self):
             return {'loc':self.loc,
                     'skew':self.skew,
                     'df':self.df,
-                    'A':self.A}
+                    'Exponentiated diagonal lower triangle of A':self.A_lower_triangle}
 
         @property
         def disp_inv(self):
-            return np.matmul(self.A,np.transpose(self.A)) # uses Sigma^{-1} = A A^T
+            return self.A @ self.A.transpose(0, 2, 1)
         
         @property
         def disp(self):
             A_inv = np.linalg.inv(self.A)
-            return np.matmul(np.transpose(A_inv),A_inv)
-            
+            return A_inv.transpose(0,2,1) @ A_inv 
         
         # ====== DISTRIBUTION IMPLEMENTATION ====== #
         def logpdf(self,Y):
