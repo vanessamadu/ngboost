@@ -27,7 +27,7 @@ def MultivariateSkewt(k):
             self.modified_A = params[2*k+2:,:]
 
             # === related attributes === #
-            self.A = cholesky_factor(self.modified_A)
+            self.A = cholesky_factor(self.modified_A,self.dim)
 
             # ---------------------------------- #
 
