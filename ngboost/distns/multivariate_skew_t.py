@@ -21,8 +21,7 @@ def MultivariateSkewt(k):
             self.loc = params[0:k]
             self.skew = params[k:2*k]
             self.df = params[2*k+1]
-            self.disp = params[2*k+2:]
-            self.A = None # NEEDS DEFINING
+            self.A = params[2*k+2:]
             # ------------------------------------------ #
 
         @property
@@ -30,11 +29,17 @@ def MultivariateSkewt(k):
             return {'loc':self.loc,
                     'skew':self.skew,
                     'df':self.df,
-                    'disp':self.disp}
+                    'A':self.A}
 
         @property
         def disp_inv(self):
             return np.matmul(np.transpose(self.A),self.A) # uses Sigma^{-1} = A^T A
+        
+        @property
+        def disp(self):
+            A_inv = np.linalg.inv(self.A)
+            return np.matmul(A_inv,np.transpose(A_inv))
+            
         
         # ====== DISTRIBUTION IMPLEMENTATION ====== #
         def logpdf(self,Y):
