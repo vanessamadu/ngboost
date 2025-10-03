@@ -124,37 +124,36 @@ class MVNLogScore(LogScore):
         return FisherInfo
 
 
-def get_chol_factor(lower_tri_vals):
+def cholesky_factor(lower_triangle_vals:np.ndarray) -> np.ndarray:
     """
-
     Args:
-        lower_tri_vals: numpy array, shaped as the number of lower triangular
+        lower_triangle_values: numpy array, shaped as the number of lower triangular
                         elements, number of observations.
                         The values ordered according to np.tril_indices(p)
-                        where p is the dimension of the multivariate normal distn
+                        where p is the dimension of the multivariate distn
 
     Returns:
         Nxpxp numpy array, with the lower triangle filled in. The diagonal is exponentiated.
 
     """
-    lower_size, N = lower_tri_vals.shape
+    lower_triangle_size, n_data = lower_triangle_vals.shape
 
     # solve p(p+3)/2 = lower_size to get the
     # number of dimensions.
 
-    p = (-1 + (1 + 8 * lower_size) ** 0.5) / 2
+    p = (-1 + (1 + 8 * lower_triangle_size) ** 0.5) / 2
     p = int(p)
 
-    if not isinstance(lower_tri_vals, np.ndarray):
-        lower_tri_vals = np.array(lower_tri_vals)
+    if not isinstance(lower_triangle_vals, np.ndarray):
+        lower_triangle_vals = np.array(lower_triangle_vals)
 
-    L = np.zeros((N, p, p))
+    L = np.zeros((n_data, p, p))
     for par_ind, (k, l) in enumerate(zip(*np.tril_indices(p))):
         if k == l:
             # Add a small number to avoid singular matrices.
-            L[:, k, l] = np.exp(lower_tri_vals[par_ind, :]) + 1e-6
+            L[:, k, l] = np.exp(lower_triangle_vals[par_ind, :]) + 1e-6
         else:
-            L[:, k, l] = lower_tri_vals[par_ind, :]
+            L[:, k, l] = lower_triangle_vals[par_ind, :]
     return L
 
 
