@@ -2,6 +2,7 @@
     Extra functions useful for Distns
 """
 from ngboost.distns import RegressionDistn
+import numpy as np
 
 # pylint: disable=too-few-public-methods
 
@@ -32,3 +33,30 @@ def SurvivalDistnClass(Dist: RegressionDistn):
             return Dist.fit(Y["Time"])
 
     return SurvivalDistn
+
+def cholesky_factor(lower_triangle_vals:np.ndarray, p:int) -> np.ndarray:
+    """
+    Args:
+        lower_triangle_values: numpy array, shaped as the number of lower triangular
+                        elements, number of observations.
+                        The values ordered according to np.tril_indices(p).
+
+        p: int, dimension of the multivariate distn
+
+    Returns:
+        Nxpxp numpy array, with the lower triangle filled in. The diagonal is exponentiated.
+
+    """
+    _, n_data = lower_triangle_vals.shape
+
+    if not isinstance(lower_triangle_vals, np.ndarray):
+        lower_triangle_vals = np.array(lower_triangle_vals)
+
+    L = np.zeros((n_data, p, p))
+    for par_ind, (k, l) in enumerate(zip(*np.tril_indices(p))):
+        if k == l:
+            # Add a small number to avoid singular matrices.
+            L[:, k, l] = np.exp(lower_triangle_vals[par_ind, :]) + 1e-6
+        else:
+            L[:, k, l] = lower_triangle_vals[par_ind, :]
+    return L
