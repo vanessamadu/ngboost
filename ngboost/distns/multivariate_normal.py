@@ -8,20 +8,9 @@ import warnings
 
 import numpy as np
 import scipy as sp
-from ngboost.distns.utils import cholesky_factor
+from ngboost.distns.utils import cholesky_factor, get_tril_idxs
 from ngboost.distns.distn import RegressionDistn
 from ngboost.scores import LogScore
-
-
-def get_tril_idxs(p):
-    tril_indices = np.tril_indices(p)
-    mask_diag = tril_indices[0] == tril_indices[1]
-
-    off_diags = np.where(np.invert(mask_diag))[0]
-    diags = np.where(mask_diag)[0]
-
-    return tril_indices, diags, off_diags
-
 
 class MVNLogScore(LogScore):
     def score(self, Y):
