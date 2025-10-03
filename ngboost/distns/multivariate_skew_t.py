@@ -24,10 +24,10 @@ def MultivariateSkewt(k):
             self.loc = params[0:k,:]
             self.skew = params[k:2*k,:]
             self.df = params[2*k+1,:]
-            self.A_lower_triangle = params[2*k+2:,:]
+            self.modified_A = params[2*k+2:,:]
 
             # === related attributes === #
-            self.A = cholesky_factor(self.A_lower_triangle)
+            self.A = cholesky_factor(self.modified_A)
 
             # ---------------------------------- #
 
@@ -36,7 +36,7 @@ def MultivariateSkewt(k):
             return {'loc':self.loc,
                     'skew':self.skew,
                     'df':self.df,
-                    'Exponentiated diagonal lower triangle of A':self.A_lower_triangle}
+                    'Exponentiated diagonal lower triangle of A':self.modified_A}
 
         @property
         def disp_inv(self):
