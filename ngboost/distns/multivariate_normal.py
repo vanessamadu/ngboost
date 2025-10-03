@@ -124,25 +124,20 @@ class MVNLogScore(LogScore):
         return FisherInfo
 
 
-def cholesky_factor(lower_triangle_vals:np.ndarray) -> np.ndarray:
+def cholesky_factor(lower_triangle_vals:np.ndarray, p:int) -> np.ndarray:
     """
     Args:
         lower_triangle_values: numpy array, shaped as the number of lower triangular
                         elements, number of observations.
-                        The values ordered according to np.tril_indices(p)
-                        where p is the dimension of the multivariate distn
+                        The values ordered according to np.tril_indices(p).
+
+        p: int, dimension of the multivariate distn
 
     Returns:
         Nxpxp numpy array, with the lower triangle filled in. The diagonal is exponentiated.
 
     """
-    lower_triangle_size, n_data = lower_triangle_vals.shape
-
-    # solve p(p+3)/2 = lower_size to get the
-    # number of dimensions.
-
-    p = (-1 + (1 + 8 * lower_triangle_size) ** 0.5) / 2
-    p = int(p)
+    _, n_data = lower_triangle_vals.shape
 
     if not isinstance(lower_triangle_vals, np.ndarray):
         lower_triangle_vals = np.array(lower_triangle_vals)
@@ -208,7 +203,7 @@ def MultivariateNormal(k):
             self.tril_L = np.array(params[self.p :, :])
 
             # Returns 3d array, shape (p, p, N)
-            self.L = get_chol_factor(self.tril_L)
+            self.L = cholesky_factor(self.tril_L,p = int((-1 + (1 + 8 * self.tril_L.shape[0]) ** 0.5) / 2))
 
             # The remainder is just for utility.
             self.cov_inv = self.L @ self.L.transpose(0, 2, 1)
