@@ -10,7 +10,7 @@ def MultivariateSkewt(k):
     
     class K_VariateSkewt(RegressionDistn):
 
-        n_params = None # NEEDS DEFINING AS A FUNCTION OF K
+        n_params = (k+4)*(k+1)/2 - 1
         score = [MultivariateSkewtLogScore]
         multi_output = True
         
@@ -33,12 +33,12 @@ def MultivariateSkewt(k):
 
         @property
         def disp_inv(self):
-            return np.matmul(np.transpose(self.A),self.A) # uses Sigma^{-1} = A^T A
+            return np.matmul(self.A,np.transpose(self.A)) # uses Sigma^{-1} = A A^T
         
         @property
         def disp(self):
             A_inv = np.linalg.inv(self.A)
-            return np.matmul(A_inv,np.transpose(A_inv))
+            return np.matmul(np.transpose(A_inv),A_inv)
             
         
         # ====== DISTRIBUTION IMPLEMENTATION ====== #
@@ -80,8 +80,9 @@ def MultivariateSkewt(k):
             
             if self.df > 2:
                 C = np.sqrt(2*self.df/np.pi)
-                num = np.matmul(self.disp,self.skew)
-                denom = (self.df-2)*np.sqrt(1+np.dot(self.skew,np.matmul(self.disp,self.skew)))
+                dispersion = self.disp
+                num = np.matmul(dispersion,self.skew)
+                denom = (self.df-2)*np.sqrt(1+np.dot(self.skew,np.matmul(dispersion,self.skew)))
                 return C*num/denom + self.loc
             else:
                 raise ValueError("Mean is undefined for df <= 2")
