@@ -36,7 +36,7 @@ def MultivariateSkewt(k):
             return {'loc':self.loc,
                     'skew':self.skew,
                     'df':self.df,
-                    'Exponentiated diagonal lower triangle of A':self.modified_A}
+                    'Log diagonal lower triangle of A':self.modified_A}
 
         @property
         def disp_inv(self):
@@ -70,7 +70,7 @@ def MultivariateSkewt(k):
                 0.5,(self.df+self.dim+1)/2,1.5,-T_input**2/(self.df+self.dim)
             )/(np.sqrt(np.pi*(self.df+self.dim))*special.gamma((self.df+self.dim)/2))
 
-            return c_d - 0.5*special.gamma(det_disp) - (self.df/2)*(1+self.dim/self.df)*np.log(1+Q/self.df) + np.log(2*T)
+            return c_d - 0.5*np.log(det_disp) - (self.df/2)*(1+self.dim/self.df)*np.log(1+Q/self.df) + np.log(2*T)
 
         def rv(self):
             pass
