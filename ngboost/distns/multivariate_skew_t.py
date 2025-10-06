@@ -7,24 +7,24 @@ import numpy as np
 from scipy import special
 
 
-def MultivariateSkewt(k):
+def MultivariateSkewt(p):
     
-    class K_VariateSkewt(RegressionDistn):
+    class P_VariateSkewt(RegressionDistn):
 
-        n_params = int((k + 4) * (k + 1) / 2 - 1)
+        n_params = int((p + 4) * (p + 1) / 2 - 1)
         score = [MultivariateSkewtLogScore]
         multi_output = True
         
         def __init__(self, params):
             super().__init__(params)
-            self.dim = int(k)
+            self.dim = int(p)
             self.n_data = int(params.shape[1])
 
             # ------ parameter attributes ------ #
-            self.loc = params[0:k,:]
-            self.skew = params[k:2*k,:]
-            self.df = params[2*k+1,:]
-            self.modified_A = params[2*k+2:,:]
+            self.loc = params[0:p,:]
+            self.skew = params[p:2*p,:]
+            self.df = params[2*p+1,:]
+            self.modified_A = params[2*p+2:,:]
 
             # === related attributes === #
             self.A = cholesky_factor(self.modified_A,self.dim)
@@ -94,7 +94,7 @@ def MultivariateSkewt(k):
                 raise ValueError("Mean is undefined for df <= 2")
                 
 
-    return K_VariateSkewt
+    return P_VariateSkewt
 
 class MultivariateSkewtLogScore(LogScore):
     def score(self,Y):
