@@ -82,7 +82,7 @@ def MultivariateSkewt(p):
             Parameters
             ----------
             Y : ndarray
-                response variable values associated with covariates. 
+                response variable values associated with covariate values. 
                 shape: [self.n_data, self.dim]
 
             Returns
@@ -96,6 +96,23 @@ def MultivariateSkewt(p):
             
         
         def T(self,Y):
+            """
+            Cumulative distribution function of the univariate T distribution with self.df + self.dim degrees
+            of freedom evaluated at 
+            self.skew * (Y - self.loc) * srt(self.df + self.dim) / sqrt((Y - self.loc)^T *self.disp_inv * (Y - self.loc) + self.df).
+
+            Parameters
+            ----------
+            Y : ndrray
+                response variable values associated with covariate values.
+                shape: [self.n_data, self.dim]
+
+            Returns
+            -------
+            ndarray
+                cumulative distribution function as described above associated with each set of n_data covariate values.
+                shape: [self.n_data, 1]
+            """
             T_input = np.einsum('...i,...i',self.skew,Y-self.loc)*np.sqrt(self.df + self.dim)/(np.sqrt(self.Q + self.df))
 
             T_val = 0.5 + T_input*special.gamma((self.df+self.dim+1)/2)*special.hyp2f1(
