@@ -33,6 +33,15 @@ def MultivariateSkewt(p):
 
         @property
         def params(self):
+            """
+            Returns a summary of current parameter values.
+
+            Returns
+            -------
+            dict
+                location, skew, degrees of freedom, and components of log diagonal 
+                cholesky factor A of the inverse dispersion matrix.
+            """
             return {'loc':self.loc,
                     'skew':self.skew,
                     'df':self.df,
@@ -40,6 +49,7 @@ def MultivariateSkewt(p):
 
         @property
         def disp_inv(self):
+
             return self.A @ self.A.transpose(0, 2, 1) # p x p x n_data
         
         @property
