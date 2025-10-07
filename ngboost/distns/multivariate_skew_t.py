@@ -16,18 +16,18 @@ def MultivariateSkewt(p):
         multi_output = True
         
         def __init__(self, params):
-            super().__init__(params)
+            super().__init__(params) # n_params x n_data
             self.dim = int(p)
-            self.n_data = int(params.shape[1])
+            self.n_data = int(params.shape[1]) 
 
             # ------ parameter attributes ------ #
-            self.loc = params[0:p,:]
-            self.skew = params[p:2*p,:]
-            self.df = params[2*p+1,:]
-            self.modified_A = params[2*p+2:,:]
+            self.loc = params[0:p,:] # dim x n_data
+            self.skew = params[p:2*p,:] # dim x n_data
+            self.df = params[2*p+1,:] # 1 x n_data
+            self.modified_A = params[2*p+2:,:] # p(p+1)/2 x n_data
 
             # === related attributes === #
-            self.A = cholesky_factor(self.modified_A,self.dim)
+            self.A = cholesky_factor(self.modified_A,self.dim) # p(p+1)/2 x p(p+1)/2 x n_data
 
             # ---------------------------------- #
 
