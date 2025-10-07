@@ -83,7 +83,8 @@ def MultivariateSkewt(p):
             return [self.rv() for _ in range(m)]
 
         def mean(self):
-            
+            # return 1 x n object
+
             if self.df > 2:
                 C = np.sqrt(2*self.df/np.pi)
                 dispersion = self.disp
