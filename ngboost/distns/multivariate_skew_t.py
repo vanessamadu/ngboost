@@ -54,7 +54,7 @@ def MultivariateSkewt(p):
             Returns
             -------
             ndarray 
-                Inverse dispersion matrix associated with each set of n_data covariate values.
+                inverse dispersion matrix associated with each set of n_data covariate values.
                 shape: [self.n_data, self.dim, self.dim]
             """
             return  np.einsum('...jk,...lk',self.A,self.A) # n_data x p x p
@@ -67,7 +67,7 @@ def MultivariateSkewt(p):
             Returns
             -------
             ndarray
-                Dispersion matrix associated with each set of n_data covariate values.
+                dispersion matrix associated with each set of n_data covariate values.
                 shape: [self.n_data, self.dim, self.dim]
             """
             A_inv = np.array([np.linalg.inv(self.A[ii,:,:]) for ii in range(self.n_data)]) # this is going to be a speed bottleneck. 
@@ -76,6 +76,22 @@ def MultivariateSkewt(p):
         # ====== DISTRIBUTION IMPLEMENTATION ====== #
         
         def Q(self,Y):
+            """
+            Square of the Mahalanobis distance.
+
+            Parameters
+            ----------
+            Y : ndarray
+                response variable values associated with covariates. 
+                shape: [self.n_data, self.dim]
+
+            Returns
+            -------
+            ndarray
+                square of the mahalanobis distance associated with each set of n_data covariate values.
+                shape: [self.n_data, 1]
+
+            """
             return np.einsum('...j,...jk,...k',Y-self.loc,self.disp_inv,Y-self.loc) # n_data x 1
             
         
