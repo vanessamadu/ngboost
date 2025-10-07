@@ -63,9 +63,8 @@ def MultivariateSkewt(p):
             
             ## intermediate terms
             det_disp = 1/(np.prod(np.diag(self.A)))**2
-            T_input = (np.dot(self.skew,Y-self.loc)*np.sqrt(self.df + self.dim)
-                              )/(np.sqrt(Q + self.df)
-            )
+
+            T_input = np.einsum('i...,i...',self.skew,Y-self.loc)*np.sqrt(self.df + self.dim)/(np.sqrt(Q + self.df))
             
             T = 0.5 + T_input*special.gamma((self.df+self.dim+1)/2)*special.hyp2f1(
                 0.5,(self.df+self.dim+1)/2,1.5,-T_input**2/(self.df+self.dim)
