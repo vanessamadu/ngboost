@@ -16,25 +16,24 @@ def MultivariateSkewt(p):
         multi_output = True
         
         def __init__(self, params):
-            super().__init__(params) # n_params x n_data
+            super().__init__(params) # n_data x n_params
             self.dim = int(p)
             self.n_data = int(params.shape[1]) 
 
             # ------ parameter attributes ------ #
-            self.loc = params[0:p,:] # dim x n_data
-            self.skew = params[p:2*p,:] # dim x n_data
-            self.df = params[2*p+1,:] # 1 x n_data
-            self.modified_A = params[2*p+2:,:] # p(p+1)/2 x n_data
+            self.loc = params[0:p,:] # n_data x dim
+            self.skew = params[p:2*p,:] # n_data x dim
+            self.df = params[2*p+1,:] # n_data x 1
+            self.modified_A = params[2*p+2:,:] # n_data x p(p+1)/2
 
             # === related attributes === #
-            self.A = cholesky_factor(self.modified_A,self.dim) # p x p x n_data
-
+            self.A = cholesky_factor(self.modified_A,self.dim) # n_data x p x p
             # ---------------------------------- #
 
         @property
         def params(self):
             """
-            Returns a summary of current parameter values.
+            Summary of current parameter values.
 
             Returns
             -------
@@ -49,13 +48,21 @@ def MultivariateSkewt(p):
 
         @property
         def disp_inv(self):
+            """
+            Inverse of the dispersion matrix calculated from cholesky factor, A.
 
-            return self.A @ self.A.transpose(0, 2, 1) # p x p x n_data
+            Returns
+            -------
+            ndarray 
+                Inverse dispersion matrix associated with each set of n_data covariate values.
+                shape: [self.n_data, self.dim, self.dim]
+            """
+            return  np.einsum('...jk,...lk',self.A,self.A) # n_data x p x p
         
         @property
         def disp(self):
             A_inv = np.linalg.inv(self.A)
-            return A_inv.transpose(0,2,1) @ A_inv # p x p x n_data
+            return np.einsum('...jk,...lk',A_inv,A_inv) # n_data x p x p
 
 
         # ====== DISTRIBUTION IMPLEMENTATION ====== #
