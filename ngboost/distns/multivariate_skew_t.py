@@ -76,11 +76,11 @@ def MultivariateSkewt(p):
         # ====== DISTRIBUTION IMPLEMENTATION ====== #
         
         def Q(self,Y):
-            return np.einsum('j...,jk...,k...',Y-self.loc,self.disp_inv,Y-self.loc) # 1 x n_data
+            return np.einsum('...j,...jk,...k',Y-self.loc,self.disp_inv,Y-self.loc) # n_data x 1
             
         
         def T(self,Y):
-            T_input = np.einsum('i...,i...',self.skew,Y-self.loc)*np.sqrt(self.df + self.dim)/(np.sqrt(self.Q + self.df))
+            T_input = np.einsum('...i,...i',self.skew,Y-self.loc)*np.sqrt(self.df + self.dim)/(np.sqrt(self.Q + self.df))
 
             T_val = 0.5 + T_input*special.gamma((self.df+self.dim+1)/2)*special.hyp2f1(
                 0.5,(self.df+self.dim+1)/2,1.5,(-T_input**2)/(self.df+self.dim)
@@ -117,8 +117,8 @@ def MultivariateSkewt(p):
             if self.df > 2:
                 C = np.sqrt(2*self.df/np.pi)
                 dispersion = self.disp
-                num = np.einsum('jk...,j...',dispersion,self.skew)
-                denom = (self.df-2)*np.sqrt(1+np.einsum('j...,jk...,k...',self.skew,dispersion,self.skew))
+                num = np.einsum('...jk,...j',dispersion,self.skew)
+                denom = (self.df-2)*np.sqrt(1+np.einsum('...j,...jk,...k',self.skew,dispersion,self.skew))
                 return C*num/denom + self.loc
             else:
                 raise ValueError("Mean is undefined for df <= 2")
