@@ -27,7 +27,7 @@ def MultivariateSkewt(p):
             self.modified_A = params[2*p+2:,:] # p(p+1)/2 x n_data
 
             # === related attributes === #
-            self.A = cholesky_factor(self.modified_A,self.dim) # p(p+1)/2 x p(p+1)/2 x n_data
+            self.A = cholesky_factor(self.modified_A,self.dim) # p x p x n_data
 
             # ---------------------------------- #
 
@@ -40,25 +40,26 @@ def MultivariateSkewt(p):
 
         @property
         def disp_inv(self):
-            return self.A @ self.A.transpose(0, 2, 1)
+            return self.A @ self.A.transpose(0, 2, 1) # p x p x n_data
         
         @property
         def disp(self):
             A_inv = np.linalg.inv(self.A)
-            return A_inv.transpose(0,2,1) @ A_inv 
+            return A_inv.transpose(0,2,1) @ A_inv # p x p x n_data
         
         # ====== DISTRIBUTION IMPLEMENTATION ====== #
         def logpdf(self,Y):
+            # should return something 1 x n_data
 
             # logpdf terms
             c_d = np.log(special.gamma(
                 (self.df+self.dim)/2)
                 ) 
             - np.log(special.gamma(self.df/2)) 
-            - (self.dim/2)*np.log(np.pi * self.df)
+            - (self.dim/2)*np.log(np.pi * self.df) 
 
-            Q = np.dot(Y-self.loc,
-                       np.matmul(self.disp_inv),Y-self.loc)
+            Q = np.einsum('j...,jk...,k...',Y-self.loc,self.disp_inv,Y-self.loc) # 1 x n_data
+            #np.dot(Y-self.loc,np.matmul(self.disp_inv),Y-self.loc)
             
             ## intermediate terms
             det_disp = 1/(np.prod(np.diag(self.A)))**2
