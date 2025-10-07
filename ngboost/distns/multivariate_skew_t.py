@@ -67,7 +67,7 @@ def MultivariateSkewt(p):
             T_input = np.einsum('i...,i...',self.skew,Y-self.loc)*np.sqrt(self.df + self.dim)/(np.sqrt(Q + self.df))
             
             T = 0.5 + T_input*special.gamma((self.df+self.dim+1)/2)*special.hyp2f1(
-                0.5,(self.df+self.dim+1)/2,1.5,-T_input**2/(self.df+self.dim)
+                0.5,(self.df+self.dim+1)/2,1.5,(-T_input**2)/(self.df+self.dim)
             )/(np.sqrt(np.pi*(self.df+self.dim))*special.gamma((self.df+self.dim)/2))
 
             return c_d - 0.5*np.log(det_disp) - (self.df/2)*(1+self.dim/self.df)*np.log(1+Q/self.df) + np.log(2*T)
@@ -87,8 +87,8 @@ def MultivariateSkewt(p):
             if self.df > 2:
                 C = np.sqrt(2*self.df/np.pi)
                 dispersion = self.disp
-                num = np.matmul(dispersion,self.skew)
-                denom = (self.df-2)*np.sqrt(1+np.dot(self.skew,np.matmul(dispersion,self.skew)))
+                num = np.einsum('jk...,j...',dispersion,self.skew)
+                denom = (self.df-2)*np.sqrt(1+np.einsum('j...,jk...,k...',self.skew,dispersion,self.skew))
                 return C*num/denom + self.loc
             else:
                 raise ValueError("Mean is undefined for df <= 2")
