@@ -61,9 +61,17 @@ def MultivariateSkewt(p):
         
         @property
         def disp(self):
-            A_inv = np.linalg.inv(self.A)
-            return np.einsum('...jk,...lk',A_inv,A_inv) # n_data x p x p
+            """
+            Dispersion matrix calculated from cholesky factor, A.
 
+            Returns
+            -------
+            ndarray
+                Dispersion matrix associated with each set of n_data covariate values.
+                shape: [self.n_data, self.dim, self.dim]
+            """
+            A_inv = np.array([np.linalg.inv(self.A[ii,:,:]) for ii in range(self.n_data)]) # this is going to be a speed bottleneck. 
+            return np.einsum('...jk,...lk',A_inv,A_inv) # n_data x p x p
 
         # ====== DISTRIBUTION IMPLEMENTATION ====== #
         
