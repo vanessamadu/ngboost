@@ -167,6 +167,8 @@ def MultivariateSkewt(p):
 
     return P_VariateSkewt
 
+### NOTE THAT THERE WILL BE SOME INHERITANCE ISSUES HERE.
+
 class MultivariateSkewtLogScore(LogScore):
     def score(self,Y):
        return -self.logpdf(Y)
@@ -176,13 +178,28 @@ class MultivariateSkewtLogScore(LogScore):
         v_d = self.df+self.dim
         v_Q = v_d/(self.df + self.Q(Y))
         q = v_Q*np.einsum('...i,...i',self.skew,Y-self.loc)
-        r = self.t(q,v_d)/self.tau(Y)
+        tau_val = self.tau(Y)
+        r = self.t(q,v_d)/tau_val
+        q_2 = q*np.sqrt((v_d+2)/(self.df+2))
+        T_2 = self.T(q_2,v_d+2)
+        B = None #NEEDS DEFINING
+
         # ----------------------- #
 
         d_xi = np.einsum("...jk,...k",
                          self.disp_inv,Y-self.loc)*(
                              1+q*r*v_Q/v_d
                              ) - np.sqrt(v_Q)*r*self.skew
+        
+        ###
         d_alpha = np.sqrt(v_Q)*r*(Y-self.loc)
+        ###
+        d_v = 0.5*(special.digamma((v_d+1)/2)
+                    - special.digamma(self.df/2)
+                    + 1
+                    - v_Q*T_2/tau_val
+                    - B
+                    - np.log(1+self.Q(Y)/self.df)
+        )
     def metric(self):
         pass
