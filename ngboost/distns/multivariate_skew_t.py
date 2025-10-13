@@ -93,7 +93,14 @@ def MultivariateSkewt(p):
 
             """
             return np.einsum('...j,...jk,...k',Y-self.loc,self.disp_inv,Y-self.loc)# n_data x 1
-            
+        
+        def T(self,Y,df):
+            return 0.5 + Y*special.gamma((df+1)/2)*special.hyp2f1(
+                0.5,
+                (df+1)/2,
+                1.5,
+                -Y**2/df
+                )/(np.sqrt(np.pi*df)*special.gamma(df/2))
         
         def tau(self,Y):
             """
@@ -113,15 +120,11 @@ def MultivariateSkewt(p):
                 cumulative distribution function as described above associated with each set of n_data covariate values.
                 shape: [self.n_data, 1]
             """
-
-            # NEEDS CHECKING
             
             T_input = np.einsum('...i,...i',self.skew,Y-self.loc)*np.sqrt(self.df + self.dim)/(np.sqrt(self.Q + self.df))
+            df = self.df + self.dim
 
-            T_val = 0.5 + T_input*special.gamma((self.df+self.dim+1)/2)*special.hyp2f1(
-                0.5,(self.df+self.dim+1)/2,1.5,(-T_input**2)/(self.df+self.dim)
-            )/(np.sqrt(np.pi*(self.df+self.dim))*special.gamma((self.df+self.dim)/2))
-            return T_val
+            return self.T(T_input,df)
         
         def t(self,Y,df):
             # logpdf terms (with adjustable df because of how its applied.)
