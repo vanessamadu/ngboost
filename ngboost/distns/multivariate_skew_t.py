@@ -92,7 +92,7 @@ def MultivariateSkewt(p):
                 shape: [self.n_data, 1]
 
             """
-            return np.einsum('...j,...jk,...k',Y-self.loc,self.disp_inv,Y-self.loc) # n_data x 1
+            return np.einsum('...j,...jk,...k',Y-self.loc,self.disp_inv,Y-self.loc)# n_data x 1
             
         
         def tau(self,Y):
@@ -126,12 +126,13 @@ def MultivariateSkewt(p):
         def t(self,Y,df):
             # logpdf terms (with adjustable df because of how its applied.)
             dim = np.shape(Y)[1]
+            
             c = special.gamma(
                 (df+dim)/2)/(
-                    special.gamma(df/2)*(dim/2)*np.pi * df)
+                    special.gamma(df/2)*(np.pi * df)**(dim/2))
             det_disp = 1/(np.prod(np.diag(self.A)))**2
 
-            return c / (np.sqrt(det_disp)*(1+self.Q(Y)/df)**(df/2)*(1+dim/df))
+            return (c * (1+self.Q(Y)/df)**(-(df+dim)/2))/ np.sqrt(det_disp)
         
         def logpdf(self,Y):
             # should return something 1 x n_dat
