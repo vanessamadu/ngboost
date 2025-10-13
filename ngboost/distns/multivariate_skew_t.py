@@ -136,7 +136,7 @@ def MultivariateSkewt(p):
         def logpdf(self,Y):
             # should return something 1 x n_dat
 
-            return np.log(self.t(Y)) + np.log(2*self.tau(Y))
+            return np.log(self.t(Y,self.df)) + np.log(2*self.tau(Y))
 
         def rv(self):
             pass
@@ -172,6 +172,12 @@ class MultivariateSkewtLogScore(LogScore):
         v_d = self.df+self.dim
         v_Q = v_d/(self.df + self.Q(Y))
         q = v_Q*np.einsum('...i,...i',self.skew,Y-self.loc)
-    
+        r = self.t(q,v_d)/self.tau(Y)
+        # ----------------------- #
+
+        d_xi = np.einsum("...jk,...k",
+                         self.disp_inv,Y-self.loc)*(
+                             1+q*r*v_Q/v_d
+                             ) - np.sqrt(v_Q)*r*self.skew
     def metric(self):
         pass
