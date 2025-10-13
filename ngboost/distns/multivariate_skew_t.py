@@ -95,7 +95,7 @@ def MultivariateSkewt(p):
             return np.einsum('...j,...jk,...k',Y-self.loc,self.disp_inv,Y-self.loc) # n_data x 1
             
         
-        def T(self,Y):
+        def tau(self,Y):
             """
             Cumulative distribution function of the univariate T distribution with self.df + self.dim degrees
             of freedom evaluated at 
@@ -123,19 +123,20 @@ def MultivariateSkewt(p):
             )/(np.sqrt(np.pi*(self.df+self.dim))*special.gamma((self.df+self.dim)/2))
             return T_val
         
-        def t(self,Y):
-            # logpdf terms
+        def t(self,Y,df):
+            # logpdf terms (with adjustable df because of how its applied.)
+            dim = np.shape(Y)[1]
             c = special.gamma(
-                (self.df+self.dim)/2)/(
-                    special.gamma(self.df/2)*(self.dim/2)*np.pi * self.df)
+                (df+dim)/2)/(
+                    special.gamma(df/2)*(dim/2)*np.pi * df)
             det_disp = 1/(np.prod(np.diag(self.A)))**2
 
-            return c / (np.sqrt(det_disp)*(1+self.Q(Y)/self.df)**(self.df/2)*(1+self.dim/self.df))
+            return c / (np.sqrt(det_disp)*(1+self.Q(Y)/df)**(df/2)*(1+dim/df))
         
         def logpdf(self,Y):
             # should return something 1 x n_dat
 
-            return np.log(self.t(Y)) + np.log(2*self.T(Y))
+            return np.log(self.t(Y)) + np.log(2*self.tau(Y))
 
         def rv(self):
             pass
