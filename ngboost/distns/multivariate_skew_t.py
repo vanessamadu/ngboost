@@ -167,7 +167,10 @@ class MultivariateSkewtLogScore(LogScore):
        return -self.logpdf(Y)
     
     def d_score(self,Y):
-        pass
+        # ---- aux vairables ---- #
+        v_d = self.df+self.dim
+        v_Q = v_d/(self.df + self.Q(Y))
+        q = v_Q*np.einsum('...i,...i',self.skew,Y-self.loc)
     
     def metric(self):
         pass
