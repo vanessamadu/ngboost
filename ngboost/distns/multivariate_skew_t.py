@@ -113,6 +113,9 @@ def MultivariateSkewt(p):
                 cumulative distribution function as described above associated with each set of n_data covariate values.
                 shape: [self.n_data, 1]
             """
+
+            # NEEDS CHECKING
+            
             T_input = np.einsum('...i,...i',self.skew,Y-self.loc)*np.sqrt(self.df + self.dim)/(np.sqrt(self.Q + self.df))
 
             T_val = 0.5 + T_input*special.gamma((self.df+self.dim+1)/2)*special.hyp2f1(
