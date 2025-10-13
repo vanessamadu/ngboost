@@ -179,5 +179,6 @@ class MultivariateSkewtLogScore(LogScore):
                          self.disp_inv,Y-self.loc)*(
                              1+q*r*v_Q/v_d
                              ) - np.sqrt(v_Q)*r*self.skew
+        d_alpha = np.sqrt(v_Q)*r*(Y-self.loc)
     def metric(self):
         pass
