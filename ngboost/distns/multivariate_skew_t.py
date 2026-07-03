@@ -1,205 +1,98 @@
-"""The NGBoost multivariate skew-t distribution and scores"""
-
+"""
+"""
 from ngboost.distns.distn import RegressionDistn
-from ngboost.distns.utils import cholesky_factor
 from ngboost.scores import LogScore
-import numpy as np
-from scipy import special
 
+class MVStLogScore(LogScore):
+    def score(self, Y):
+        return -self.logpdf(Y)
 
-def MultivariateSkewt(p):
+    def d_score(self, Y):
+        """
+       
+
+        Args:
+            Y: The response data
+
+        Returns:
+            self.N, self.n_params shaped array containing the gradient.
+
+        """
     
-    class P_VariateSkewt(RegressionDistn):
+        pass
 
-        n_params = int((p + 4) * (p + 1) / 2 - 1)
-        score = [MultivariateSkewtLogScore]
+    def metric(self):
+
+        """
+
+        Returns:
+            self.N, self.n_params, self.n_params shaped array containing the fisher information for
+             the ith observation in the last two indices.
+
+        """
+        pass
+
+
+def MultivariateSkewT(k):
+    """
+    #  Factory function that generates classes for
+    #  k-dimensional multivariate skew-t distributions for NGBoost
+
+    # This distribution has LogScore implemented for it.
+
+    # Currently only for a regression implementation.
+    """
+    class MVSt(RegressionDistn):
+        """
+
+        """
+
+        n_params = None
+        scores = [MVStLogScore]
         multi_output = True
-        
+
         def __init__(self, params):
-            super().__init__(params) # n_data x n_params
-            self.dim = int(p)
-            self.n_data = int(params.shape[1]) 
+            super().__init__(params)
+            pass
 
-            # ------ parameter attributes ------ #
-            self.loc = params[0:p,:] # n_data x dim
-            self.skew = params[p:2*p,:] # n_data x dim
-            self.df = params[2*p+1,:] # n_data x 1
-            self.modified_A = params[2*p+2:,:] # n_data x p(p+1)/2
+        def logpdf(self, Y):
+            pass
 
-            # === related attributes === #
-            self.A = cholesky_factor(self.modified_A,self.dim) # n_data x p x p
-            # ---------------------------------- #
-
-        @property
-        def params(self):
-            """
-            Summary of current parameter values.
-
-            Returns
-            -------
-            dict
-                location, skew, degrees of freedom, and components of log diagonal 
-                cholesky factor A of the inverse dispersion matrix.
-            """
-            return {'loc':self.loc,
-                    'skew':self.skew,
-                    'df':self.df,
-                    'Log diagonal lower triangle of A':self.modified_A}
-
-        @property
-        def disp_inv(self):
-            """
-            Inverse of the dispersion matrix calculated from cholesky factor, A.
-
-            Returns
-            -------
-            ndarray 
-                inverse dispersion matrix associated with each set of n_data covariate values.
-                shape: [self.n_data, self.dim, self.dim]
-            """
-            return  np.einsum('...jk,...lk',self.A,self.A) # n_data x p x p
-        
-        @property
-        def disp(self):
-            """
-            Dispersion matrix calculated from cholesky factor, A.
-
-            Returns
-            -------
-            ndarray
-                dispersion matrix associated with each set of n_data covariate values.
-                shape: [self.n_data, self.dim, self.dim]
-            """
-            A_inv = np.array([np.linalg.inv(self.A[ii,:,:]) for ii in range(self.n_data)]) # this is going to be a speed bottleneck. 
-            return np.einsum('...jk,...lk',A_inv,A_inv) # n_data x p x p
-
-        # ====== DISTRIBUTION IMPLEMENTATION ====== #
-        
-        def Q(self,Y):
-            """
-            Square of the Mahalanobis distance.
-
-            Parameters
-            ----------
-            Y : ndarray
-                response variable values associated with covariate values. 
-                shape: [self.n_data, self.dim]
-
-            Returns
-            -------
-            ndarray
-                square of the mahalanobis distance associated with each set of n_data covariate values.
-                shape: [self.n_data, 1]
-
-            """
-            return np.einsum('...j,...jk,...k',Y-self.loc,self.disp_inv,Y-self.loc)# n_data x 1
-        
-        def T(self,Y,df):
-            return 0.5 + Y*special.gamma((df+1)/2)*special.hyp2f1(
-                0.5,
-                (df+1)/2,
-                1.5,
-                -Y**2/df
-                )/(np.sqrt(np.pi*df)*special.gamma(df/2))
-        
-        def tau(self,Y):
-            """
-            Cumulative distribution function of the univariate T distribution with self.df + self.dim degrees
-            of freedom evaluated at 
-            self.skew * (Y - self.loc) * srt(self.df + self.dim) / sqrt((Y - self.loc)^T *self.disp_inv * (Y - self.loc) + self.df).
-
-            Parameters
-            ----------
-            Y : ndrray
-                response variable values associated with covariate values.
-                shape: [self.n_data, self.dim]
-
-            Returns
-            -------
-            ndarray
-                cumulative distribution function as described above associated with each set of n_data covariate values.
-                shape: [self.n_data, 1]
-            """
-            
-            T_input = np.einsum('...i,...i',self.skew,Y-self.loc)*np.sqrt(self.df + self.dim)/(np.sqrt(self.Q + self.df))
-            df = self.df + self.dim
-
-            return self.T(T_input,df)
-        
-        def t(self,Y,df):
-            # logpdf terms (with adjustable df because of how its applied.)
-            dim = np.shape(Y)[1]
-            
-            c = special.gamma(
-                (df+dim)/2)/(
-                    special.gamma(df/2)*(np.pi * df)**(dim/2))
-            det_disp = 1/(np.prod(np.diag(self.A)))**2
-
-            return (c * (1+self.Q(Y)/df)**(-(df+dim)/2))/ np.sqrt(det_disp)
-        
-        def logpdf(self,Y):
-            # should return something 1 x n_dat
-
-            return np.log(self.t(Y,self.df)) + np.log(2*self.tau(Y))
+        def fit(Y):
+            pass
 
         def rv(self):
             pass
 
-        # ========================================= #
-        def fit(Y):
+        def rvs(self, n):
+            return [self.rv() for _ in range(n)]
+
+        def sample(self, n):
+            return self.rvs(n)
+
+        @property
+        def disp(self):
             pass
 
-        def sample(self,m):
-            return [self.rv() for _ in range(m)]
+        @property
+        def params(self):
+            return {
+                "location": self.loc, 
+                "dispersion": self.disp,
+                "skew": self.skew,
+                "df": self.df
+                }
+
+        def scipy_distribution(self):
+            """
+
+            """
+            pass
 
         def mean(self):
-            # return 1 x n object
+            pass
 
-            if self.df > 2:
-                C = np.sqrt(2*self.df/np.pi)
-                dispersion = self.disp
-                num = np.einsum('...jk,...j',dispersion,self.skew)
-                denom = (self.df-2)*np.sqrt(1+np.einsum('...j,...jk,...k',self.skew,dispersion,self.skew))
-                return C*num/denom + self.loc
-            else:
-                raise ValueError("Mean is undefined for df <= 2")
-                
+        def cov(self):
+            pass
 
-    return P_VariateSkewt
-
-### NOTE THAT THERE WILL BE SOME INHERITANCE ISSUES HERE.
-
-class MultivariateSkewtLogScore(LogScore):
-    def score(self,Y):
-       return -self.logpdf(Y)
-    
-    def d_score(self,Y):
-        # ---- aux vairables ---- #
-        v_d = self.df+self.dim
-        v_Q = v_d/(self.df + self.Q(Y))
-        q = v_Q*np.einsum('...i,...i',self.skew,Y-self.loc)
-        tau_val = self.tau(Y)
-        r = self.t(q,v_d)/tau_val
-        q_2 = q*np.sqrt((v_d+2)/(self.df+2))
-        T_2 = self.T(q_2,v_d+2)
-        B = None #NEEDS DEFINING
-
-        # ----------------------- #
-
-        d_xi = np.einsum("...jk,...k",
-                         self.disp_inv,Y-self.loc)*(
-                             1+q*r*v_Q/v_d
-                             ) - np.sqrt(v_Q)*r*self.skew
-        
-        ###
-        d_alpha = np.sqrt(v_Q)*r*(Y-self.loc)
-        ###
-        d_v = 0.5*(special.digamma((v_d+1)/2)
-                    - special.digamma(self.df/2)
-                    + 1
-                    - v_Q*T_2/tau_val
-                    - B
-                    - np.log(1+self.Q(Y)/self.df)
-        )
-    def metric(self):
-        pass
+    return MVSt
