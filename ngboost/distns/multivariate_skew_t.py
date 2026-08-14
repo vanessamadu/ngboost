@@ -65,6 +65,7 @@ def MultivariateSkewT(d):
             self.rho = None
             self.loc = None
             self.eta = None
+            self.A = None
 
         def logpdf(self, Y):
 
@@ -100,7 +101,6 @@ def MultivariateSkewT(d):
             z = np.matmul(self.stds, u_star[1:]) * np.sign(u_star[0])
             return self.loc + z / np.sqrt(v)
 
-
         def rvs(self, n):
             return [self.rv() for _ in range(n)]
 
@@ -109,7 +109,11 @@ def MultivariateSkewT(d):
 
         @property
         def disp(self):
-            pass
+            A_inv = np.linalg.inv(self.A)
+            return np.matmul(
+                        np.matmul(
+                            np.transpose(A_inv), np.diag(np.exp(-self.rho / 2))),
+                            A_inv)
 
         @property
         def stds(self):
@@ -132,10 +136,12 @@ def MultivariateSkewT(d):
             pass
 
         def Q(self, Y):
+            scaled_y0 = np.matmul(np.transpose(self.A), Y - self.loc)
+
             return np.matmul(
-                np.matmul(Y - self.loc , self.disp),
-                np.transpose(Y - self.loc)
-            )
+                np.matmul(np.transpose(scaled_y0), np.diag(np.exp(2 * self.rho)),
+                scaled_y0
+            ))
 
         @property
         def delta(self):
