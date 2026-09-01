@@ -148,15 +148,30 @@ def MultivariateSkewT(d):
 
         @property
         def stds(self):
-            pass
+            return np.sqrt(np.diag(self.disp))
 
         @property
         def corr(self):
-            pass
+            """_summary_
+
+            Returns:
+                _type_: _description_
+            """
+            return self.disp / np.outer(self.stds, self.stds)
 
         @property
         def omega_star(self):
-            pass
+            """_summary_
+
+            Returns:
+                _type_: _description_
+            """
+            delta_col = self.delta.reshape(-1, 1)   
+            
+            return np.block(
+                [[1, np.transpose(delta_col)],
+                 [delta_col, self.corr]]
+            )
 
         @property
         def df(self):
@@ -169,7 +184,7 @@ def MultivariateSkewT(d):
 
         @property
         def skew(self):
-            pass
+            return self.stds * self.eta
 
         def Q(self, Y):
             """_summary_
@@ -223,9 +238,22 @@ def MultivariateSkewT(d):
             pass
 
         def mean(self):
-            pass
+            """_summary_
+
+            Returns:
+                _type_: _description_
+            """
+            disp_val = self.disp
+            return self.loc + np.sqrt( (2 * self.df) / np.pi) * np.matmul(disp_val, self.eta) / \
+                ( (self.df - 2) * np.sqrt(1 + np.matmul( np.matmul( np.transpose(self.eta), disp_val ), self.eta) ) )
+            
 
         def cov(self):
-            pass
+            disp_value = self.disp
+            const = self.df/( (self.df - 2) * (self.df - 4))
+            outer_product_term = ( 2 * (self.df - 4) * np.matmul( np.outer(self.eta, self.eta) , disp_value ) ) / \
+                (np.pi * (self.df - 2) * (1 + np.matmul( np.matmul( np.transpose(self.eta), disp_value ), self.eta ) ) )
+
+            return const * np.matmul( disp_value , np.eye(self.d) - outer_product_term)
 
     return MVSt
