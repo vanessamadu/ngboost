@@ -3,7 +3,7 @@
 from ngboost.distns.distn import RegressionDistn
 from ngboost.scores import LogScore
 
-from scipy.special import gamma, gammaln
+from scipy.special import gammaln, digamma
 from scipy.stats import t, multivariate_normal, chi2
 import numpy as np
 
@@ -13,7 +13,6 @@ class MVStLogScore(LogScore):
 
     def d_score(self, Y):
         """
-       
 
         Args:
             Y: The response data
@@ -22,8 +21,17 @@ class MVStLogScore(LogScore):
             self.N, self.n_params shaped array containing the gradient.
 
         """
-    
-        pass
+        VQ_val = self.VQ(Y)
+
+        grad_loc = np.matmul( self.precision, (1 + ( self.q(Y) * self.r(Y) ) / (self.df + self.d)) * VQ_val * (Y - self.loc) ) - \
+                    np.sqrt(VQ_val) * self.r(Y) * self.eta
+        grad_v_disp = 0.5 * np.matmul(np.matmul(self.duplication, np.kron(self.precision, self.precision)),
+                                ((1 + self.q(Y) * self.r(Y) / (self.df + self.d) ) * VQ_val * np.outer( Y - self.loc, Y - self.loc) - self.disp).flatten('F'))
+        grad_eta = np.sqrt(VQ_val) * self.r(Y) * (Y - self.loc)
+        grad_df = 0.5 * (digamma( (self.df + self.d + 1) / 2 ) - digamma( self.df / 2 ) + 1 - \
+                         (VQ_val * self.T2bar(Y) + self.Bbar(Y) + np.log( 1 + self.Q(Y) / self.df))
+                        )
+        return np.concatenate([grad_loc, grad_v_disp, grad_eta, [grad_df]])
 
     def metric(self):
 
@@ -34,6 +42,35 @@ class MVStLogScore(LogScore):
              the ith observation in the last two indices.
 
         """
+        pass
+
+    ## Aux functions
+
+    def VQ(self, y):
+        return (self.df + self.d) / (self.df + self.Q(y))
+
+    def q(self, y):
+        return np.sqrt(self.VQ(y)) * np.dot( self.eta, y - self.loc)
+
+    def q2(self, y):
+        return self.q(y) * np.sqrt( (self.df + self.d + 2) / (self.df + 2))
+
+    def T(self, y):
+        return t.cdf(self.q(y), loc = 0, scale = 1, df = self.df + self.d)
+
+    def r(self,y):
+        return t.pdf(self.q(y), loc = 0, scale = 1, df = self.df + self.d) / self.T(y)
+
+    def B(self,y):
+        pass
+
+    def T2bar(self,y):
+        return t.cdf(self.q2(y), loc = 0, scale = 1, df = self.df + self.d + 2) / self.T(y)
+
+    def Bbar(self,y):
+        return self.B(y)/self.T(y)
+
+    def duplication(self):
         pass
 
 
@@ -147,7 +184,20 @@ def MultivariateSkewT(d):
                             A_inv)
 
         @property
+        def precision(self):
+            return np.matmul(
+                np.matmul(
+                    np.transpose(self.A), np.diag(np.exp(2 * self.rho ))
+                ), self.A
+            )
+
+        @property
         def stds(self):
+            """_summary_
+
+            Returns:
+                _type_: _description_
+            """
             return np.sqrt(np.diag(self.disp))
 
         @property
@@ -249,6 +299,11 @@ def MultivariateSkewT(d):
             
 
         def cov(self):
+            """_summary_
+
+            Returns:
+                _type_: _description_
+            """
             disp_value = self.disp
             const = self.df/( (self.df - 2) * (self.df - 4))
             outer_product_term = ( 2 * (self.df - 4) * np.matmul( np.outer(self.eta, self.eta) , disp_value ) ) / \
