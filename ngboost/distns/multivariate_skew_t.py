@@ -3,7 +3,7 @@
 from ngboost.distns.distn import RegressionDistn
 from ngboost.scores import LogScore
 
-from scipy.special import gamma
+from scipy.special import gamma, gammaln
 from scipy.stats import t, multivariate_normal, chi2
 import numpy as np
 
@@ -68,27 +68,32 @@ def MultivariateSkewT(d):
             self.A = None
 
         def logpdf(self, Y):
+            """_summary_
 
-            term1 = np.log( 
-                gamma( 
-                    (self.df + d) / 2
-                ) / (
-                gamma(
-                    self.df / 2
-                ) * (np.pi * self.df) ** (d / 2)
-                )
-            )
+            Args:
+                Y (_type_): _description_
 
-            term2 = np.sum(self.rho) / 4
+            Returns:
+                _type_: _description_
+            """
 
-            term3 = - (self.df / 2) * (1 + d / self.df) * np.log(1 + self.Q(Y) / self.df)
+            Q_val = self.Q(Y)
+
+            term1 = - (self.d / 2) * np.log(np.pi * self.df) \
+                    + gammaln((self.df + self.d) / 2) \
+                    - gammaln(self.df / 2)
+            
+            term2 = np.sum(self.rho)
+
+            term3 = - (self.df / 2) * (1 + self.d / self.df) * np.log(1 + Q_val / self.df)
 
             term4 = np.log(2 * t.cdf(
-                np.sqrt(self.df + d / 
-                        self.df + self.Q(Y)) * np.dot(
-                            self.eta, Y - self.loc
-                        )
-            ), df = self.df + d)
+                np.sqrt(
+                    (self.df + self.d) / (self.df + Q_val) 
+                    ) * np.dot(
+                        self.eta, Y - self.loc
+                    )
+            , df = self.df + self.d))
 
             return term1 + term2 + term3 + term4
 
@@ -96,23 +101,49 @@ def MultivariateSkewT(d):
             pass
 
         def rv(self):
-            u_star = multivariate_normal(0, self.omega_star).rvs(size=self.d + 1)
+            """_summary_
+
+            Returns:
+                _type_: _description_
+            """
+            u_star = multivariate_normal(mean = np.zeros(self.d + 1), cov = self.omega_star).rvs()
             v = chi2(df = self.df).rvs() / self.df
-            z = np.matmul(self.stds, u_star[1:]) * np.sign(u_star[0])
+            z = self.stds * u_star[1:] * np.sign(u_star[0])
             return self.loc + z / np.sqrt(v)
 
         def rvs(self, n):
+            """_summary_
+
+            Args:
+                n (_type_): _description_
+
+            Returns:
+                _type_: _description_
+            """
             return [self.rv() for _ in range(n)]
 
         def sample(self, n):
+            """_summary_
+
+            Args:
+                n (_type_): _description_
+
+            Returns:
+                _type_: _description_
+            """
             return self.rvs(n)
 
         @property
         def disp(self):
+            """_summary_
+
+            Returns:
+                _type_: _description_
+            """
             A_inv = np.linalg.inv(self.A)
             return np.matmul(
                         np.matmul(
-                            np.transpose(A_inv), np.diag(np.exp(-self.rho / 2))),
+                            np.transpose(A_inv), np.diag(np.exp(-2 * self.rho ))),
                             A_inv)
 
         @property
@@ -129,6 +160,11 @@ def MultivariateSkewT(d):
 
         @property
         def df(self):
+            """_summary_
+
+            Returns:
+                _type_: _description_
+            """
             return self.nu0 + np.exp(self.nu_tilde)
 
         @property
@@ -136,19 +172,32 @@ def MultivariateSkewT(d):
             pass
 
         def Q(self, Y):
+            """_summary_
+
+            Args:
+                Y (_type_): _description_
+
+            Returns:
+                _type_: _description_
+            """
             scaled_y0 = np.matmul(np.transpose(self.A), Y - self.loc)
 
             return np.matmul(
-                np.matmul(np.transpose(scaled_y0), np.diag(np.exp(2 * self.rho)),
+                np.matmul(np.transpose(scaled_y0), np.diag(np.exp(2 * self.rho))),
                 scaled_y0
-            ))
+            )
 
         @property
         def delta(self):
-            np.matmul(
+            """_summary_
+
+            Returns:
+                _type_: _description_
+            """
+            return np.matmul(
                 self.corr, self.skew
                 ) / (
-                    1 + np.sqrt(
+                     np.sqrt( 1 + 
                         np.matmul(
                             np.matmul(
                                 np.transpose(self.skew),
@@ -156,6 +205,7 @@ def MultivariateSkewT(d):
                         self.skew)
                     )
                 )
+            
 
         @property
         def params(self):
