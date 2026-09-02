@@ -22,10 +22,11 @@ class MVStLogScore(LogScore):
 
         """
         VQ_val = self.VQ(Y)
+        precision_val = self.precision
 
-        grad_loc = np.matmul( self.precision, (1 + ( self.q(Y) * self.r(Y) ) / (self.df + self.d)) * VQ_val * (Y - self.loc) ) - \
+        grad_loc = np.matmul( precision_val, (1 + ( self.q(Y) * self.r(Y) ) / (self.df + self.d)) * VQ_val * (Y - self.loc) ) - \
                     np.sqrt(VQ_val) * self.r(Y) * self.eta
-        grad_v_disp = 0.5 * np.matmul(np.matmul(self.duplication, np.kron(self.precision, self.precision)),
+        grad_v_disp = 0.5 * np.matmul(np.matmul(self.duplication, np.kron(precision_val, precision_val)),
                                 ((1 + self.q(Y) * self.r(Y) / (self.df + self.d) ) * VQ_val * np.outer( Y - self.loc, Y - self.loc) - self.disp).flatten('F'))
         grad_eta = np.sqrt(VQ_val) * self.r(Y) * (Y - self.loc)
         grad_df = 0.5 * (digamma( (self.df + self.d + 1) / 2 ) - digamma( self.df / 2 ) + 1 - \
@@ -42,9 +43,15 @@ class MVStLogScore(LogScore):
              the ith observation in the last two indices.
 
         """
-        pass
+        precision_val = self.precision
+        eta_bar_val = self.eta_bar
 
-    ## Aux functions
+        F_loc_loc = ( (self.df + self.d) / (self.df + self.d + 2) ) * precision_val + \
+                    ( 2 / (self.df + self.d + 1)) * ( (self.df + self.d) / (self.df + self.d - 1)) * self.M(self.r, self.r, 2, 4) * \
+                        (np.dot(eta_bar_val, eta_bar_val)* precision_val - np.outer(self.eta, self.eta)) + \
+                    (2 * (self.df + self.d) / (self.df + self.d -1 )) * self.M(self.r, self.r, 0, 6) * np.outer(self.eta, self.eta)
+
+    ## Aux functions 
 
     def VQ(self, y):
         return (self.df + self.d) / (self.df + self.Q(y))
@@ -73,6 +80,14 @@ class MVStLogScore(LogScore):
     def duplication(self):
         pass
 
+    ## Fisher aux functions
+
+    def M(self, g, h, i , j , k = 0):
+        pass
+
+    def eta_bar(self):
+        A_inv = np.linalg.inv(self.A)
+        return np.matmul(np.matmul(np.diag(np.exp(-self.rho)), A_inv), self.eta)
 
 def MultivariateSkewT(d):
     """
@@ -97,13 +112,13 @@ def MultivariateSkewT(d):
 
             self.d = d
 
-            self.nu0 = None
-            self.nu_tilde = None
-            self.rho = None
-            self.loc = None
-            self.eta = None
-            self.A = None
-
+            self.loc = params[:d]
+            self.rho = params[d:2*d]
+            self.A = self.reconstruct_LT_matrix(params[2*d: int(d*(d+3)/2)])
+            self.eta = params[int(d*(d+3)/2):int(d*(d+5)/2)]
+            self.nu0 = 4
+            self.nu_tilde = params[-1]
+            
         def logpdf(self, Y):
             """_summary_
 
@@ -169,6 +184,9 @@ def MultivariateSkewT(d):
                 _type_: _description_
             """
             return self.rvs(n)
+
+        def reconstruct_LT_matrix(self):
+            pass
 
         @property
         def disp(self):
@@ -312,3 +330,4 @@ def MultivariateSkewT(d):
             return const * np.matmul( disp_value , np.eye(self.d) - outer_product_term)
 
     return MVSt
+
