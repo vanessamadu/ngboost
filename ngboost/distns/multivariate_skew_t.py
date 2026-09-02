@@ -3,7 +3,7 @@
 from ngboost.distns.distn import RegressionDistn
 from ngboost.scores import LogScore
 
-from scipy.special import gammaln, digamma
+from scipy.special import gammaln, digamma, gamma
 from scipy.stats import t, multivariate_normal, chi2
 import numpy as np
 
@@ -112,10 +112,10 @@ def MultivariateSkewT(d):
 
             self.d = d
 
-            self.loc = params[:d]
-            self.rho = params[d:2*d]
-            self.A = self.reconstruct_LT_matrix(params[2*d: int(d*(d+3)/2)])
-            self.eta = params[int(d*(d+3)/2):int(d*(d+5)/2)]
+            self.loc = np.array(params[:d])
+            self.rho = np.array(params[d:2*d])
+            self.v_star_A = np.array(params[2*d: int(d*(d+3)/2)])
+            self.eta = np.array(params[int(d*(d+3)/2):int(d*(d+5)/2)])
             self.nu0 = 4
             self.nu_tilde = params[-1]
             
@@ -185,9 +185,13 @@ def MultivariateSkewT(d):
             """
             return self.rvs(n)
 
-        def reconstruct_LT_matrix(self):
-            pass
-
+        @property
+        def A(self):
+            LT = np.eye(self.d)
+            rows, cols = np.tril_indices(d, k=-1) 
+            LT[rows,cols] = self.v_star_A
+            return LT
+        
         @property
         def disp(self):
             """_summary_
@@ -203,11 +207,8 @@ def MultivariateSkewT(d):
 
         @property
         def precision(self):
-            return np.matmul(
-                np.matmul(
-                    np.transpose(self.A), np.diag(np.exp(2 * self.rho ))
-                ), self.A
-            )
+            A_val = self.A
+            return np.matmul(np.matmul(A_val, np.diag(np.exp(2 * self.rho))), np.transpose(A_val))
 
         @property
         def stds(self):
@@ -312,15 +313,14 @@ def MultivariateSkewT(d):
                 _type_: _description_
             """
             disp_val = self.disp
-            return self.loc + np.sqrt( (2 * self.df) / np.pi) * np.matmul(disp_val, self.eta) / \
-                ( (self.df - 2) * np.sqrt(1 + np.matmul( np.matmul( np.transpose(self.eta), disp_val ), self.eta) ) )
+            return self.loc + np.sqrt(self.df/np.pi) * (gamma((self.df - 1)/2) / gamma(self.df/2)) *  np.matmul(disp_val,self.eta) / np.sqrt(1+np.matmul(np.matmul(np.transpose(self.eta),disp_val),self.eta))
             
 
         def cov(self):
             """_summary_
-
+            currently incorrect!
             Returns:
-                _type_: _description_
+                _type_: _description_ 
             """
             disp_value = self.disp
             const = self.df/( (self.df - 2) * (self.df - 4))
