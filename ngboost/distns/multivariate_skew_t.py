@@ -290,6 +290,9 @@ def MultivariateSkewT(d):
                     )
                 )
             
+        @property
+        def mu(self):
+            return self.delta * np.sqrt(self.df / np.pi) * gamma( (self.df - 1) / 2 ) / gamma(self.df / 2)
 
         @property
         def params(self):
@@ -312,8 +315,7 @@ def MultivariateSkewT(d):
             Returns:
                 _type_: _description_
             """
-            disp_val = self.disp
-            return self.loc + np.sqrt(self.df/np.pi) * (gamma((self.df - 1)/2) / gamma(self.df/2)) *  np.matmul(disp_val,self.eta) / np.sqrt(1+np.matmul(np.matmul(np.transpose(self.eta),disp_val),self.eta))
+            return self.loc + self.stds * self.mu
             
 
         def cov(self):
@@ -322,12 +324,9 @@ def MultivariateSkewT(d):
             Returns:
                 _type_: _description_ 
             """
-            disp_value = self.disp
-            const = self.df/( (self.df - 2) * (self.df - 4))
-            outer_product_term = ( 2 * (self.df - 4) * np.matmul( np.outer(self.eta, self.eta) , disp_value ) ) / \
-                (np.pi * (self.df - 2) * (1 + np.matmul( np.matmul( np.transpose(self.eta), disp_value ), self.eta ) ) )
-
-            return const * np.matmul( disp_value , np.eye(self.d) - outer_product_term)
+            outer_product_term = self.stds * self.mu
+        
+            return ( self.df / (self.df - 2) ) * self.disp - np.outer(outer_product_term, outer_product_term)
 
     return MVSt
 
