@@ -7,6 +7,15 @@ from scipy.special import gammaln, digamma, gamma
 from scipy.stats import t, multivariate_normal, chi2
 import numpy as np
 
+import rpy2.robjects as robjects
+from rpy2.robjects.packages import importr
+from rpy2.robjects import numpy2ri
+from rpy2.robjects.conversion import localconverter
+
+# import R packages
+base = importr('base')
+sn = importr('sn')
+
 class MVStLogScore(LogScore):
     def score(self, Y):
         return -self.logpdf(Y)
@@ -149,8 +158,32 @@ def MultivariateSkewT(d):
 
             return term1 + term2 + term3 + term4
 
-        def fit(Y):
-            pass
+        def fit(self,Y):
+            with localconverter(robjects.default_converter + numpy2ri.converter):
+                r_matrix = robjects.conversion.py2rpy(Y)
+                fit = sn.mst_fit(y=r_matrix)
+
+                dp = fit.rx2('dp')
+
+                xi = np.array(dp.rx2('beta')) if 'beta' in dp.names else np.array(dp.rx2('xi'))
+                disp = np.array(dp.rx2('Omega'))
+                skew = np.array(dp.rx2('alpha'))
+                df = float(np.array(dp.rx2('df'))[0])
+
+            # find A and rho from disp
+            L = np.linalg.cholesky(disp)
+            rho = -np.log(np.diagonal(L) ** 2)
+            B_tril = np.multiply(np.tril(L, k=-1), np.sqrt(rho))
+            np.fill_diagonal(B_tril, 1)
+            A = np.linalg.inv(B_tril)
+
+            stds = np.sqrt(np.diag(disp))
+            eta = skew / stds
+            nu_tilde = np.log(df - self.nu0)
+
+            mask = A != 0
+            v_star_A = A[mask]
+            return np.array([xi, rho, v_star_A, eta, nu_tilde])
 
         def rv(self):
             """_summary_
