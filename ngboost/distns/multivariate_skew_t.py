@@ -112,7 +112,7 @@ def MultivariateSkewT(d):
 
         """
         global nu0
-        nu0 = 4
+        nu0 = 2
         n_params = int(1 + d * (d + 5) / 2)
         scores = [MVStLogScore]
         multi_output = True
@@ -124,8 +124,8 @@ def MultivariateSkewT(d):
 
             self.loc = np.array(params[:d])
             self.rho = np.array(params[d:2*d])
-            self.v_star_A = np.array(params[2*d: int(d*(d+3)/2)])
-            self.eta = np.array(params[int(d*(d+3)/2):int(d*(d+5)/2)])
+            self.v_star_A = np.array(params[2*d: int(2*d + d*(d-1)/2)])
+            self.eta = np.array(params[int(2*d + d*(d-1)/2):int(d + 2*d + d*(d-1)/2)])
             self.nu_tilde = params[-1]
             
         def logpdf(self, Y):
@@ -158,7 +158,8 @@ def MultivariateSkewT(d):
 
             return term1 + term2 + term3 + term4
 
-        def fit(Y):
+        @staticmethod
+        def fit(Y:np.ndarray):
             Y_np = np.ascontiguousarray(Y, dtype=np.float64)
             n_rows, n_cols = Y_np.shape
 
@@ -175,25 +176,29 @@ def MultivariateSkewT(d):
 
 
             # Extract parameter list (dp: direct parameters xi, Omega, alpha, nu)
-            xi = np.array(dp.rx2('beta')) if 'beta' in dp.names else np.array(dp.rx2('xi'))
+            xi = np.squeeze(np.array(dp.rx2('beta')) if 'beta' in dp.names else np.array(dp.rx2('xi')))
             disp = np.array(dp.rx2('Omega'))
             skew = np.array(dp.rx2('alpha'))
             df = float(np.array(dp.rx2('nu'))[0])
 
             #             # find A and rho from disp
-            L = np.linalg.cholesky(disp)
-            rho = -np.log(np.diagonal(L) ** 2)
-            B_tril = np.multiply(np.tril(L, k=-1), np.sqrt(rho))
-            np.fill_diagonal(B_tril, 1)
-            A = np.linalg.inv(B_tril)
+            Omega_inv = np.linalg.inv(disp)
+            L = np.linalg.cholesky(Omega_inv)
+            diagL = np.diag(L)
+            A = L / diagL[np.newaxis, :]
+            rho = np.log(diagL)
 
             stds = np.sqrt(np.diag(disp))
-            eta = skew / stds
-            nu_tilde = np.log(df - nu0)
+            eta = skew 
+            if df <= nu0:
+                nu_tilde = 1e-5  # set to small value if fit degrees of freedom is less than nu0
+            else:
+                nu_tilde = np.log(df - nu0) 
 
-            mask = A != 0
+            mask = np.tril(A, k=-1) != 0
             v_star_A = A[mask]
-            return np.array([xi, rho, v_star_A, eta, nu_tilde])
+
+            return np.concatenate([xi, rho, v_star_A, eta, [nu_tilde]])
         
         def rv(self):
             """_summary_
