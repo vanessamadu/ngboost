@@ -188,7 +188,6 @@ def MultivariateSkewT(d):
             A = L / diagL[np.newaxis, :]
             rho = np.log(diagL)
 
-            stds = np.sqrt(np.diag(disp))
             eta = skew 
             if df <= nu0:
                 nu_tilde = 1e-5  # set to small value if fit degrees of freedom is less than nu0
