@@ -10,7 +10,7 @@ import numpy as np
 import rpy2.robjects as robjects
 from rpy2.robjects.packages import importr
 from rpy2.robjects import numpy2ri
-from rpy2.robjects.conversion import localconverter
+from rpy2.robjects import conversion, default_converter
 
 # import R packages
 base = importr('base')
@@ -111,7 +111,8 @@ def MultivariateSkewT(d):
         """
 
         """
-
+        global nu0
+        nu0 = 4
         n_params = int(1 + d * (d + 5) / 2)
         scores = [MVStLogScore]
         multi_output = True
@@ -125,7 +126,6 @@ def MultivariateSkewT(d):
             self.rho = np.array(params[d:2*d])
             self.v_star_A = np.array(params[2*d: int(d*(d+3)/2)])
             self.eta = np.array(params[int(d*(d+3)/2):int(d*(d+5)/2)])
-            self.nu0 = 4
             self.nu_tilde = params[-1]
             
         def logpdf(self, Y):
@@ -158,19 +158,29 @@ def MultivariateSkewT(d):
 
             return term1 + term2 + term3 + term4
 
-        def fit(self,Y):
-            with localconverter(robjects.default_converter + numpy2ri.converter):
-                r_matrix = robjects.conversion.py2rpy(Y)
-                fit = sn.mst_fit(y=r_matrix)
+        def fit(Y):
+            Y_np = np.ascontiguousarray(Y, dtype=np.float64)
+            n_rows, n_cols = Y_np.shape
 
-                dp = fit.rx2('dp')
+            #                 # Explicitly construct an R matrix (column-major order)
+            r_matrix = robjects.r['matrix'](
+                robjects.FloatVector(Y_np.ravel(order='F')), 
+                nrow=n_rows, 
+                ncol=n_cols
+                )
 
-                xi = np.array(dp.rx2('beta')) if 'beta' in dp.names else np.array(dp.rx2('xi'))
-                disp = np.array(dp.rx2('Omega'))
-                skew = np.array(dp.rx2('alpha'))
-                df = float(np.array(dp.rx2('df'))[0])
+            robjects.r.assign("Y_mat", r_matrix)
+            fit = robjects.r('sn::selm(Y_mat ~ 1, family = "ST")')
+            dp = robjects.r['slot'](fit,"param").rx2('dp')
 
-            # find A and rho from disp
+
+            # Extract parameter list (dp: direct parameters xi, Omega, alpha, nu)
+            xi = np.array(dp.rx2('beta')) if 'beta' in dp.names else np.array(dp.rx2('xi'))
+            disp = np.array(dp.rx2('Omega'))
+            skew = np.array(dp.rx2('alpha'))
+            df = float(np.array(dp.rx2('nu'))[0])
+
+            #             # find A and rho from disp
             L = np.linalg.cholesky(disp)
             rho = -np.log(np.diagonal(L) ** 2)
             B_tril = np.multiply(np.tril(L, k=-1), np.sqrt(rho))
@@ -179,12 +189,12 @@ def MultivariateSkewT(d):
 
             stds = np.sqrt(np.diag(disp))
             eta = skew / stds
-            nu_tilde = np.log(df - self.nu0)
+            nu_tilde = np.log(df - nu0)
 
             mask = A != 0
             v_star_A = A[mask]
             return np.array([xi, rho, v_star_A, eta, nu_tilde])
-
+        
         def rv(self):
             """_summary_
 
@@ -220,10 +230,10 @@ def MultivariateSkewT(d):
 
         @property
         def A(self):
-            LT = np.eye(self.d)
+            lt = np.eye(self.d)
             rows, cols = np.tril_indices(d, k=-1) 
-            LT[rows,cols] = self.v_star_A
-            return LT
+            lt[rows,cols] = self.v_star_A
+            return lt
         
         @property
         def disp(self):
@@ -282,7 +292,7 @@ def MultivariateSkewT(d):
             Returns:
                 _type_: _description_
             """
-            return self.nu0 + np.exp(self.nu_tilde)
+            return nu0 + np.exp(self.nu_tilde)
 
         @property
         def skew(self):
