@@ -9,8 +9,6 @@ import numpy as np
 
 import rpy2.robjects as robjects
 from rpy2.robjects.packages import importr
-from rpy2.robjects import numpy2ri
-from rpy2.robjects import conversion, default_converter
 
 # import R packages
 base = importr('base')
@@ -349,12 +347,6 @@ def MultivariateSkewT(d):
                 "skew": self.skew,
                 "df": self.df
                 }
-
-        def scipy_distribution(self):
-            """
-
-            """
-            pass
 
         def mean(self):
             """_summary_
