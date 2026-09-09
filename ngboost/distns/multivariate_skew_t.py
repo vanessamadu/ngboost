@@ -5,6 +5,7 @@ from ngboost.scores import LogScore
 
 from scipy.special import gammaln, digamma, gamma
 from scipy.stats import t, multivariate_normal, chi2
+import scipy.integrate as integrate
 import numpy as np
 
 import rpy2.robjects as robjects
@@ -76,7 +77,7 @@ class MVStLogScore(LogScore):
         return t.pdf(self.q(y), loc = 0, scale = 1, df = self.df + self.d) / self.T(y)
 
     def B(self,y):
-        pass
+        return integrate.quad(lambda x: t(x, df = self.df + self.d) *  np.log(1 + x**2 / (self.df + self.d)), -np.inf, self.q(y))
 
     def T2bar(self,y):
         return t.cdf(self.q2(y), loc = 0, scale = 1, df = self.df + self.d + 2) / self.T(y)
