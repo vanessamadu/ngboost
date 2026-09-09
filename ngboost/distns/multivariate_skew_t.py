@@ -31,12 +31,13 @@ class MVStLogScore(LogScore):
         """
         VQ_val = self.VQ(Y)
         precision_val = self.precision
+        r_val = self.r(Y)
 
-        grad_loc = np.matmul( precision_val, (1 + ( self.q(Y) * self.r(Y) ) / (self.df + self.d)) * VQ_val * (Y - self.loc) ) - \
-                    np.sqrt(VQ_val) * self.r(Y) * self.eta
-        grad_v_disp = 0.5 * np.matmul(np.matmul(self.duplication, np.kron(precision_val, precision_val)),
-                                ((1 + self.q(Y) * self.r(Y) / (self.df + self.d) ) * VQ_val * np.outer( Y - self.loc, Y - self.loc) - self.disp).flatten('F'))
-        grad_eta = np.sqrt(VQ_val) * self.r(Y) * (Y - self.loc)
+        grad_loc = np.matmul( precision_val, (1 + ( self.q(Y) * r_val ) / (self.df + self.d)) * VQ_val * (Y - self.loc) ) - \
+                    np.sqrt(VQ_val) * r_val  * self.eta
+        grad_v_disp = 0.5 * np.matmul(np.matmul(self.duplication(), np.kron(precision_val, precision_val)),
+                                ((1 + self.q(Y) * r_val  / (self.df + self.d) ) * VQ_val * np.outer( Y - self.loc, Y - self.loc) - self.disp).flatten('F'))
+        grad_eta = np.sqrt(VQ_val) * r_val  * (Y - self.loc)
         grad_df = 0.5 * (digamma( (self.df + self.d + 1) / 2 ) - digamma( self.df / 2 ) + 1 - \
                          (VQ_val * self.T2bar(Y) + self.Bbar(Y) + np.log( 1 + self.Q(Y) / self.df))
                         )
@@ -52,7 +53,7 @@ class MVStLogScore(LogScore):
 
         """
         precision_val = self.precision
-        eta_bar_val = self.eta_bar
+        eta_bar_val = self.eta_bar()
 
         F_loc_loc = ( (self.df + self.d) / (self.df + self.d + 2) ) * precision_val + \
                     ( 2 / (self.df + self.d + 1)) * ( (self.df + self.d) / (self.df + self.d - 1)) * self.M(self.r, self.r, 2, 4) * \
@@ -77,7 +78,7 @@ class MVStLogScore(LogScore):
         return t.pdf(self.q(y), loc = 0, scale = 1, df = self.df + self.d) / self.T(y)
 
     def B(self,y):
-        return integrate.quad(lambda x: t(x, df = self.df + self.d) *  np.log(1 + x**2 / (self.df + self.d)), -np.inf, self.q(y))
+        return integrate.quad(lambda x: t.pdf(x, df = self.df + self.d) *  np.log(1 + x**2 / (self.df + self.d)), -np.inf, self.q(y))[0]
 
     def T2bar(self,y):
         return t.cdf(self.q2(y), loc = 0, scale = 1, df = self.df + self.d + 2) / self.T(y)
@@ -86,7 +87,16 @@ class MVStLogScore(LogScore):
         return self.B(y)/self.T(y)
 
     def duplication(self):
-        pass
+        output = np.zeros([int(self.d * (self.d + 1) / 2), self.d ** 2])
+        for jj in range(self.d):
+            for ii in range (jj, self.d):
+                u = np.zeros(int(self.d * (self.d + 1) / 2))
+                u[int(jj * self.d + ii - jj * (jj + 1) / 2)] = 1
+                T = np.zeros([self.d, self.d])
+                T[ii,jj] = 1
+                T[jj,ii] = 1
+                output += np.outer(u, T.flatten('F'))
+        return output
 
     ## Fisher aux functions
 
