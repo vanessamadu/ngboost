@@ -54,12 +54,51 @@ class MVStLogScore(LogScore):
         """
         precision_val = self.precision
         eta_bar_val = self.eta_bar()
+        duplication_val = self.duplication()
+        Upsilonbar_val = self.Upsilonbar()
+        Upsilon_val = self.Upsilon()
+        df_d = self.df + self.d
+        disp_val = self.disp()
 
-        F_loc_loc = ( (self.df + self.d) / (self.df + self.d + 2) ) * precision_val + \
-                    ( 2 / (self.df + self.d + 1)) * ( (self.df + self.d) / (self.df + self.d - 1)) * self.M(self.r, self.r, 2, 4) * \
+        F_loc_loc = ( (df_d) / (df_d + 2) ) * precision_val + \
+                    ( 2 / (df_d + 1)) * ( (df_d) / (df_d - 1)) * self.M(self.r, self.r, 2, 4) * \
                         (np.dot(eta_bar_val, eta_bar_val)* precision_val - np.outer(self.eta, self.eta)) + \
-                    (2 * (self.df + self.d) / (self.df + self.d -1 )) * self.M(self.r, self.r, 0, 6) * np.outer(self.eta, self.eta)
+                    (2 * (df_d) / (df_d -1 )) * self.M(self.r, self.r, 0, 6) * np.outer(self.eta, self.eta)
 
+        F_xi_v_omega = np.sqrt( (df_d) / (df_d - 1) ) * ( self.b(self.df) / (self.b(df_d - 1)) ) * \
+            ( 
+                ( 2 * df_d * self.M(self.r,1,4,1) - df_d * self.M(self.r,1,2,1) + \
+                 np.sqrt(df_d) * (self.M(self.r,self.r,5,1) - self.M(self.r,self.r,3,1)) * np.linalg.norm(eta_bar_val)) * \
+                 np.matmul(np.outer(self.eta, Upsilon_val.flatten('F')), duplication_val) + \
+                (2 * self.M(self.r,1,2,3) + (1 / np.sqrt(df_d)) * self.M(self.r, self.r, 3,3) * np.linalg.norm(eta_bar_val)) * \
+                np.matmul((np.kron(Upsilonbar_val, np.transpose(self.eta)) + np.kron(np.transpose(self.eta), Upsilonbar_val)+ \
+                 np.matmul(self.eta, np.transpose(Upsilonbar_val))), duplication_val) - (self.M(self.r,1,0,3) + (1 / np.sqrt(df_d)) * \
+                np.linalg.norm(eta_bar_val) * self.M(self.r, self.r,1,3))* \
+                    np.matmul(np.matmul(self.eta, np.transpose(Upsilonbar_val.flatten('F'))),duplication_val)
+            )
+        F_xi_eta = np.sqrt( (df_d) / (df_d - 1) ) * ( self.b(self.df) / (self.b(df_d - 1)) ) * (
+            (df_d * self.M(self.r,1,2,1) - np.sqrt(df_d) * np.linalg.norm(self.eta) * self.M(self.r,1,1,3)**2) * np.matmul(Upsilon_val,disp_val) + \
+            (self.M(self.r,1,0,3) + (1 / np.sqrt(df_d)) * self.M(self.r,self.r,1,3) * np.linalg.norm(eta_bar_val)) * np.matmul(Upsilonbar_val, disp_val)
+        )
+
+        F_xi_df = np.sqrt( (df_d) / (df_d - 1) ) * ( self.b(self.df) / (self.b(df_d - 1)) ) * ( 
+            ((self.df + 1) / self.df) * self.psi_diff( df_d / 2, (self.df + 1) / 2)
+        ) * self.eta
+
+        F_v_omega_v_omega = 0.5 * np.matmul(np.transpose(duplication_val) ,
+                                             np.matmul(
+                                                 (df_d / (df_d + 2)) * np.kron(precision_val,precision_val)) - \
+                                                    (1 / (df_d + 2)) * np.outer(precision_val.flatten('F'), precision_val.flatten('F'))
+                                                      , duplication_val) + \
+                            0.5 * (np.linalg.norm(eta_bar_val) ** 2) * np.matmul(np.transpose(duplication_val),
+                                np.matmul(df_d * self.M(self.r, self.r, 6, 0) * np.outer(Upsilon_val.flatten('F'), Upsilon_val.flatten('F')) + \
+                                          (df_d / (df_d - 1)) * self.M(self.r, self.r,4,2) * (2 * np.kron(Upsilonbar_val.flatten('F'),Upsilon_val.flatten('F')) + \
+                                            2 * np.kron(Upsilon_val.flatten('F'),Upsilonbar_val.flatten('F')) + \
+                                                np.outer(Upsilon_val.flatten('F'), Upsilonbar_val.flatten('F')) + np.outer(Upsilonbar_val.flatten('F'), Upsilon_val.flatten('F'))
+                                          ) + (df_d / ((df_d + 1) * (df_d - 1))) * self.M(self.r, self.r,2,4) * (2 * np.kron(Upsilonbar_val.flatten('F'),Upsilonbar_val.flatten('F')) +\
+                                                                                                                 np.outer(Upsilonbar_val.flatten('F'), Upsilonbar_val.flatten('F')))
+                                          , duplication_val)
+                            )
     ## Aux functions 
 
     def VQ(self, y):
@@ -106,6 +145,20 @@ class MVStLogScore(LogScore):
     def eta_bar(self):
         A_inv = np.linalg.inv(self.A)
         return np.matmul(np.matmul(np.diag(np.exp(-self.rho)), A_inv), self.eta)
+
+    def Upsilon(self):
+        pass
+
+    def Upsilonbar(self):
+        pass
+
+    @staticmethod
+    def b(k):
+        pass
+
+    @staticmethod
+    def psi_diff(a,b):
+        return digamma(a) - digamma(b)
 
 def MultivariateSkewT(d):
     """
