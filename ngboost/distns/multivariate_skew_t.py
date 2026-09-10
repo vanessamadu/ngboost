@@ -30,7 +30,7 @@ class MVStLogScore(LogScore):
 
         """
         VQ_val = self.VQ(Y)
-        precision_val = self.precision
+        precision_val = self.precision()
         r_val = self.r(Y)
 
         grad_loc = np.matmul( precision_val, (1 + ( self.q(Y) * r_val ) / (self.df + self.d)) * VQ_val * (Y - self.loc) ) - \
@@ -52,7 +52,7 @@ class MVStLogScore(LogScore):
              the ith observation in the last two indices.
 
         """
-        precision_val = self.precision
+        precision_val = self.precision()
         eta_bar_val = self.eta_bar()
         duplication_val = self.duplication()
         Upsilonbar_val = self.Upsilonbar()
@@ -174,14 +174,13 @@ class MVStLogScore(LogScore):
         return np.matmul(np.matmul(np.diag(np.exp(-self.rho)), A_inv), self.eta)
 
     def Upsilon(self):
-        pass
+        return np.outer(self.eta, self.eta)/np.linalg.norm(self.eta_bar())
 
     def Upsilonbar(self):
-        pass
+        return self.precision() - self.Upsilon()
 
-    @staticmethod
-    def b(k):
-        pass
+    def b(self, k):
+        return 2 * t.pdf(0, df = self.df + k)
 
     @staticmethod
     def psi_diff(a,b):
