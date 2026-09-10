@@ -60,29 +60,30 @@ class MVStLogScore(LogScore):
         df_d = self.df + self.d
         disp_val = self.disp()
 
-        F_loc_loc = ( (df_d) / (df_d + 2) ) * precision_val + \
+        F_xi_xi = ( (df_d) / (df_d + 2) ) * precision_val + \
                     ( 2 / (df_d + 1)) * ( (df_d) / (df_d - 1)) * self.M(self.r, self.r, 2, 4) * \
-                        (np.dot(eta_bar_val, eta_bar_val)* precision_val - np.outer(self.eta, self.eta)) + \
+                        ((np.linalg.norm(eta_bar_val)**2) * precision_val - np.outer(self.eta, self.eta)) + \
                     (2 * (df_d) / (df_d -1 )) * self.M(self.r, self.r, 0, 6) * np.outer(self.eta, self.eta)
 
         F_xi_v_omega = np.sqrt( (df_d) / (df_d - 1) ) * ( self.b(self.df) / (self.b(df_d - 1)) ) * \
             ( 
                 ( 2 * df_d * self.M(self.r,1,4,1) - df_d * self.M(self.r,1,2,1) + \
                  np.sqrt(df_d) * (self.M(self.r,self.r,5,1) - self.M(self.r,self.r,3,1)) * np.linalg.norm(eta_bar_val)) * \
-                 np.matmul(np.outer(self.eta, Upsilon_val.flatten('F')), duplication_val) + \
+                 np.matmul(np.matmul(self.eta, np.transpose(Upsilon_val.flatten('F'))), duplication_val) + \
                 (2 * self.M(self.r,1,2,3) + (1 / np.sqrt(df_d)) * self.M(self.r, self.r, 3,3) * np.linalg.norm(eta_bar_val)) * \
                 np.matmul((np.kron(Upsilonbar_val, np.transpose(self.eta)) + np.kron(np.transpose(self.eta), Upsilonbar_val)+ \
-                 np.matmul(self.eta, np.transpose(Upsilonbar_val))), duplication_val) - (self.M(self.r,1,0,3) + (1 / np.sqrt(df_d)) * \
+                 np.matmul(self.eta, np.transpose(Upsilonbar_val.flatten("F")))), duplication_val) - (self.M(self.r,1,0,3) + (1 / np.sqrt(df_d)) * \
                 np.linalg.norm(eta_bar_val) * self.M(self.r, self.r,1,3))* \
                     np.matmul(np.matmul(self.eta, np.transpose(Upsilonbar_val.flatten('F'))),duplication_val)
             )
-        F_xi_eta = np.sqrt( (df_d) / (df_d - 1) ) * ( self.b(self.df) / (self.b(df_d - 1)) ) * (
+        F_xi_eta = 2 * np.sqrt( (df_d) / (df_d - 1) ) * ( self.b(self.df) / (self.b(df_d - 1)) ) * (
             (df_d * self.M(self.r,1,2,1) - np.sqrt(df_d) * np.linalg.norm(self.eta) * self.M(self.r,1,1,3)**2) * np.matmul(Upsilon_val,disp_val) + \
             (self.M(self.r,1,0,3) + (1 / np.sqrt(df_d)) * self.M(self.r,self.r,1,3) * np.linalg.norm(eta_bar_val)) * np.matmul(Upsilonbar_val, disp_val)
         )
 
-        F_xi_df = np.sqrt( (df_d) / (df_d - 1) ) * ( self.b(self.df) / (self.b(df_d - 1)) ) * ( 
-            ((self.df + 1) / self.df) * self.psi_diff( df_d / 2, (self.df + 1) / 2)
+        F_xi_nu = np.sqrt( (df_d) / (df_d - 1) ) * ( self.b(self.df) / (self.b(df_d - 1)) ) * ( 
+            ((self.df + 1) / self.df) * self.M(self.r, self.T2bar,0,5) + self.M(self.r, self.Bbar,0,3) + self.M(self.r,1,0,3,1) - \
+            self.M(self.r,1,0,3)* self.psi_diff( df_d / 2, (self.df + 1) / 2)
         ) * self.eta
 
         F_v_omega_v_omega = 0.5 * np.matmul(np.transpose(duplication_val) ,
@@ -105,7 +106,7 @@ class MVStLogScore(LogScore):
                                                                                     np.kron(Upsilonbar_val, self.eta) + np.kron(self.eta,Upsilonbar_val) + \
                                                                                         np.outer(Upsilonbar_val.flatten('F'), self.eta)) , disp_val)
 
-        F_v_omega_df = -0.25 * (df_d / (df_d + 2) + self.psi_diff(self.df / 2 , (df_d + 2) / 2) - self.psi_diff( (df_d + 1) / 2, self.df / 2)) * \
+        F_v_omega_nu = -0.25 * (df_d / (df_d + 2) + self.psi_diff(self.df / 2 , (df_d + 2) / 2) - self.psi_diff( (df_d + 1) / 2, self.df / 2)) * \
                         np.matmul(np.transpose(duplication_val , precision_val.flatten('F'))) - \
                         0.5 * np.sqrt(df_d) * np.linalg.norm(eta_bar_val) * (
                             ( (df_d / (df_d - 1)) * self.M(self.r, self.T2bar, 3,2) + self.M(self.r, self.Bbar, 3, 0)) * \
@@ -117,10 +118,10 @@ class MVStLogScore(LogScore):
         F_eta_eta = 2 * df_d * self.M(self.r, self.r,2,0) * np.matmul(disp_val, np.matmul(Upsilon_val, disp_val)) + \
                     2 * (df_d / (df_d - 1)) * self.M(self.r, self.r,0,2) * np.matmul(disp_val, np.matmul(Upsilonbar_val, disp_val))
 
-        F_eta_df = - np.sqrt(df_d) * ( (df_d / (df_d - 1)) * self.M(self.r,self.T2bar, 1,2) + self.M(self.r, self.Bbar,1,0)) * \
+        F_eta_nu = - np.sqrt(df_d) * ( (df_d / (df_d - 1)) * self.M(self.r,self.T2bar, 1,2) + self.M(self.r, self.Bbar,1,0)) * \
                     np.matmul(disp_val, self.eta) / np.linalg.norm(eta_bar_val)
 
-        F_df_df = 0.5 * (((self.df + 2) / self.df) * ((df_d**2)/( (df_d + 1) * (df_d - 1))) * self.M(self.T2bar, self.T2bar, 0 ,4) + self.M(self.Bbar,self.Bbar,0,0) + \
+        F_nu_nu = 0.5 * (((self.df + 2) / self.df) * ((df_d**2)/( (df_d + 1) * (df_d - 1))) * self.M(self.T2bar, self.T2bar, 0 ,4) + self.M(self.Bbar,self.Bbar,0,0) + \
                          (2 * df_d / (df_d - 1)) * self.M(self.T2bar, self.Bbar,0,2) ) + \
                     0.5 * (self.psi_diff((df_d - 1) / 2, (df_d) / 2) ** 2 + self.psi_diff((df_d - 1) / 2, (self.df) / 2) ** 2 + \
                            self.psi_diff((self.df) / 2, (df_d) / 2) - self.psi_diff((df_d - 1) / 2, (self.df) / 2) * self.psi_diff((df_d - 1) / 2, (df_d) / 2)) - \
