@@ -43,7 +43,7 @@ class MVStLogScore(LogScore):
                         )
         return np.concatenate([grad_loc, grad_v_disp, grad_eta, [grad_df]])
 
-    def metric(self):
+    def metric(self, Y):
 
         """
 
@@ -178,7 +178,13 @@ class MVStLogScore(LogScore):
     ## Fisher aux functions
 
     def M(self, g, h, i , j , k = 0):
-        pass
+       a_eta_bar_nu_val = self.a_eta_bar_nu()
+       W1_val = self.W1()
+       return self.expectation(
+            (g(a_eta_bar_nu_val * W1_val) * h(a_eta_bar_nu_val * W1_val)) * \
+            t.cdf(a_eta_bar_nu_val * W1_val) * (W1_val ** i) * (1 - W1_val ** 2) ** (j / 2) * \
+            np.log(1 - self.W1) ** k
+        )
 
     def eta_bar(self):
         A_inv = np.linalg.inv(self.A)
@@ -193,9 +199,23 @@ class MVStLogScore(LogScore):
     def b(self, k):
         return 2 * t.pdf(0, df = self.df + k)
 
+    def a_eta_bar_nu(self):
+        return np.sqrt(self.df + self.d) * np.linalg.norm(self.eta_bar())
+
+    def W1(self):
+        S1_val = self.S1()
+        return 1 / np.sqrt(S1_val + S1_val ** 2)
+
+    def S1(self):
+        pass
+
     @staticmethod
     def psi_diff(a,b):
         return digamma(a) - digamma(b)
+
+    @staticmethod
+    def expectation(val):
+        pass
 
 def MultivariateSkewT(d):
     """
