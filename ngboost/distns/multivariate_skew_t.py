@@ -93,12 +93,13 @@ class MVStLogScore(LogScore):
                                                       , duplication_val) + \
                             0.5 * (np.linalg.norm(eta_bar_val) ** 2) * np.matmul(np.transpose(duplication_val),
                                 np.matmul(df_d * self.M(self.r, self.r, 6, 0) * np.outer(Upsilon_val.flatten('F'), Upsilon_val.flatten('F')) + \
-                                          (df_d / (df_d - 1)) * self.M(self.r, self.r,4,2) * (2 * np.kron(Upsilonbar_val.flatten('F'),Upsilon_val.flatten('F')) + \
-                                            2 * np.kron(Upsilon_val.flatten('F'),Upsilonbar_val.flatten('F')) + \
-                                                np.outer(Upsilon_val.flatten('F'), Upsilonbar_val.flatten('F')) + np.outer(Upsilonbar_val.flatten('F'), Upsilon_val.flatten('F'))
-                                          ) + (df_d / ((df_d + 1) * (df_d - 1))) * self.M(self.r, self.r,2,4) * (2 * np.kron(Upsilonbar_val.flatten('F'),Upsilonbar_val.flatten('F')) +\
-                                                                                                                 np.outer(Upsilonbar_val.flatten('F'), Upsilonbar_val.flatten('F')))
-                                          , duplication_val)
+                                    (df_d / (df_d - 1)) * self.M(self.r, self.r,4,2) * (2 * np.kron(Upsilonbar_val,Upsilon_val) + \
+                                    2 * np.kron(Upsilon_val,Upsilonbar_val) + \
+                                    np.matmul(Upsilon_val.flatten('F'), np.transpose(Upsilonbar_val.flatten('F'))) + \
+                                    np.matmul(Upsilonbar_val.flatten('F'), np.transpose(Upsilon_val.flatten('F')))) + \
+                                    (df_d / ((df_d + 1) * (df_d - 1))) * self.M(self.r, self.r,2,4) * \
+                                    (2 * np.kron(Upsilonbar_val,Upsilonbar_val) + np.outer(Upsilonbar_val.flatten('F'), Upsilonbar_val.flatten('F')))
+                                , duplication_val)
                             )
 
         F_v_omega_eta = df_d * self.M(self.r,self.r,4,0)* np.matmul(np.transpose(duplication_val), np.outer(Upsilon_val.flatten('F'), self.eta), disp_val) + \
