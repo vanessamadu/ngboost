@@ -129,7 +129,14 @@ class MVStLogScore(LogScore):
                            self.psi_diff((self.df) / 2, (df_d) / 2) + self.psi_diff((self.df + 2) / 2, (df_d + 2) / 2 ) + \
                            self.psi_diff(self.df / 2, df_d / 2) - self.psi_diff((df_d - 1) / 2, (self.df) / 2) * self.psi_diff((df_d - 1) / 2, (df_d) / 2)) - \
                     0.25 * (self.psi_diff( (df_d + 1) / 2 , self.df / 2) + 1) ** 2
-                       
+
+        FisherInfo = np.block([[F_xi_xi , F_xi_v_omega, F_xi_eta, F_xi_nu],
+                               [F_xi_v_omega, F_v_omega_v_omega, F_v_omega_eta],
+                               [F_xi_eta, F_v_omega_eta, F_eta_eta, F_eta_nu],
+                               [F_xi_nu, F_v_omega_nu, F_eta_nu, [F_nu_nu]]])
+
+        return FisherInfo
+
     ## Aux functions 
 
     def VQ(self, y):
@@ -166,7 +173,7 @@ class MVStLogScore(LogScore):
                 T[ii,jj] = 1
                 T[jj,ii] = 1
                 output += np.outer(u, T.flatten('F'))
-        return output
+        return np.transpose(output)
 
     ## Fisher aux functions
 
