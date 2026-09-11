@@ -4,7 +4,7 @@ from ngboost.distns.distn import RegressionDistn
 from ngboost.scores import LogScore
 
 from scipy.special import gammaln, digamma, gamma
-from scipy.stats import t, multivariate_normal, chi2
+from scipy.stats import t, multivariate_normal, chi2, multivariate_t
 import scipy.integrate as integrate
 import numpy as np
 
@@ -15,7 +15,7 @@ from rpy2.robjects.packages import importr
 base = importr('base')
 sn = importr('sn')
 
-class MVStLogScore(LogScore):
+class MSTLogScore(LogScore):
     def score(self, Y):
         return -self.logpdf(Y)
 
@@ -206,8 +206,12 @@ class MVStLogScore(LogScore):
         S1_val = self.S1()
         return 1 / np.sqrt(S1_val + S1_val ** 2)
 
-    def S1(self):
-        pass
+    def S1(self, Y):
+        X = multivariate_t.rvs(np.zeros(self.d), np.eye(self.d), self.df)
+        X_1 = X[0]
+        Q_1 = self.Q(Y) - X_1 ** 2
+
+        return (X_1 / np.sqrt(self.df)) / np.sqrt(1 + Q_1 / self.df)
 
     @staticmethod
     def psi_diff(a,b):
@@ -226,14 +230,14 @@ def MultivariateSkewT(d):
 
     # Currently only for a regression implementation.
     """
-    class MVSt(RegressionDistn):
+    class MST(RegressionDistn):
         """
 
         """
         global nu0
         nu0 = 2
         n_params = int(1 + d * (d + 5) / 2)
-        scores = [MVStLogScore]
+        scores = [MSTLogScore]
         multi_output = True
 
         def __init__(self, params):
@@ -488,5 +492,5 @@ def MultivariateSkewT(d):
         
             return ( self.df / (self.df - 2) ) * self.disp - np.outer(outer_product_term, outer_product_term)
 
-    return MVSt
+    return MST
 
