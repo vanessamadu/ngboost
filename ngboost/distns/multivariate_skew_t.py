@@ -102,13 +102,14 @@ class MVStLogScore(LogScore):
                                 , duplication_val)
                             )
 
-        F_v_omega_eta = df_d * self.M(self.r,self.r,4,0)* np.matmul(np.transpose(duplication_val), np.outer(Upsilon_val.flatten('F'), self.eta), disp_val) + \
+        F_v_omega_eta = df_d * self.M(self.r,self.r,4,0)* \
+                        np.matmul(np.transpose(duplication_val), np.matmul(Upsilon_val.flatten('F'), np.transpose(self.eta)), disp_val) + \
                         (df_d / (df_d - 1)) * self.M(self.r,self.r,2,2) * np.matmul(np.matmul(np.transpose(duplication_val),
                                                                                     np.kron(Upsilonbar_val, self.eta) + np.kron(self.eta,Upsilonbar_val) + \
-                                                                                        np.outer(Upsilonbar_val.flatten('F'), self.eta)) , disp_val)
+                                                                                        np.matmul(Upsilonbar_val.flatten('F'), np.transpose(self.eta))) , disp_val)
 
         F_v_omega_nu = -0.25 * (df_d / (df_d + 2) + self.psi_diff(self.df / 2 , (df_d + 2) / 2) - self.psi_diff( (df_d + 1) / 2, self.df / 2)) * \
-                        np.matmul(np.transpose(duplication_val , precision_val.flatten('F'))) - \
+                        np.matmul(np.transpose(duplication_val) , precision_val.flatten('F')) - \
                         0.5 * np.sqrt(df_d) * np.linalg.norm(eta_bar_val) * (
                             ( (df_d / (df_d - 1)) * self.M(self.r, self.T2bar, 3,2) + self.M(self.r, self.Bbar, 3, 0)) * \
                                 np.matmul(np.transpose(duplication_val),Upsilon_val.flatten('F')) + \
@@ -125,7 +126,8 @@ class MVStLogScore(LogScore):
         F_nu_nu = 0.5 * (((self.df + 2) / self.df) * ((df_d**2)/( (df_d + 1) * (df_d - 1))) * self.M(self.T2bar, self.T2bar, 0 ,4) + self.M(self.Bbar,self.Bbar,0,0) + \
                          (2 * df_d / (df_d - 1)) * self.M(self.T2bar, self.Bbar,0,2) ) + \
                     0.5 * (self.psi_diff((df_d - 1) / 2, (df_d) / 2) ** 2 + self.psi_diff((df_d - 1) / 2, (self.df) / 2) ** 2 + \
-                           self.psi_diff((self.df) / 2, (df_d) / 2) - self.psi_diff((df_d - 1) / 2, (self.df) / 2) * self.psi_diff((df_d - 1) / 2, (df_d) / 2)) - \
+                           self.psi_diff((self.df) / 2, (df_d) / 2) + self.psi_diff((self.df + 2) / 2, (df_d + 2) / 2 ) + \
+                           self.psi_diff(self.df / 2, df_d / 2) - self.psi_diff((df_d - 1) / 2, (self.df) / 2) * self.psi_diff((df_d - 1) / 2, (df_d) / 2)) - \
                     0.25 * (self.psi_diff( (df_d + 1) / 2 , self.df / 2) + 1) ** 2
                        
     ## Aux functions 
