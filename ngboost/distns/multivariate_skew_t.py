@@ -143,25 +143,26 @@ class MSTLogScore(LogScore):
         return (self.df + self.d) / (self.df + self.Q(y))
 
     def q(self, y):
-        return np.sqrt(self.VQ(y)) * np.dot( self.eta, y - self.loc)
+        return np.sqrt(MSTLogScore.VQ(self, y)) * np.dot(self.eta, y - self.loc)
 
     def q2(self, y):
-        return self.q(y) * np.sqrt( (self.df + self.d + 2) / (self.df + 2))
+        return MSTLogScore.q(self,y) * np.sqrt( (self.df + self.d + 2) / (self.df + 2))
 
     def T(self, y):
-        return t.cdf(self.q(y), loc = 0, scale = 1, df = self.df + self.d)
+        return t.cdf(MSTLogScore.q(self,y), loc = 0, scale = 1, df = self.df + self.d)
 
     def r(self,y):
-        return t.pdf(self.q(y), loc = 0, scale = 1, df = self.df + self.d) / self.T(y)
+        return t.pdf(MSTLogScore.q(self,y), loc = 0, scale = 1, df = self.df + self.d) / MSTLogScore.T(self,y)
 
     def B(self,y):
-        return integrate.quad(lambda x: t.pdf(x, df = self.df + self.d) *  np.log(1 + x**2 / (self.df + self.d)), -np.inf, self.q(y))[0]
+        return integrate.quad(lambda x: t.pdf(x, df = self.df + self.d) *  np.log(1 + x**2 / (self.df + self.d)), -np.inf, MSTLogScore.q(self,y))[0]
 
     def T2bar(self,y):
-        return t.cdf(self.q2(y), loc = 0, scale = 1, df = self.df + self.d + 2) / self.T(y)
+        return t.cdf(MSTLogScore.q2(self,y), loc = 0, scale = 1, df = self.df + self.d + 2) / MSTLogScore.T(self,y)
 
-    def Bbar(self,y):
-        return self.B(y)/self.T(y)
+    @staticmethod
+    def Bbar(y):
+        return MSTLogScore.B(y)/MSTLogScore.T(y)
 
     def duplication(self):
         output = np.zeros([int(self.d * (self.d + 1) / 2), self.d ** 2])
