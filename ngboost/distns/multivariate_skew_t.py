@@ -144,22 +144,46 @@ class MSTLogScore(LogScore):
     ## Aux functions 
 
     def VQ(self, y):
+        """
+        y       [d,N]
+        output  [1,N]
+        """
         return (self.df + self.d) / (self.df + self.Q(y))
 
     def q(self, y):
-        return np.sqrt(MSTLogScore.VQ(self, y)) * np.dot(self.eta, y - self.loc)
+        """
+        output      [N,]
+        """
+        return np.sqrt(MSTLogScore.VQ(self, y)) * np.sum(np.multiply(self.eta.reshape([-1,1]), y - self.loc.reshape([-1,1])),axis=0) # elementwise columnwise dot product
 
     def q2(self, y):
+        """
+        output      [N,]
+        """
         return MSTLogScore.q(self,y) * np.sqrt( (self.df + self.d + 2) / (self.df + 2))
 
     def T(self, y):
+        """
+        output      [N,]
+        """
         return t.cdf(MSTLogScore.q(self,y), loc = 0, scale = 1, df = self.df + self.d)
 
     def r(self,y):
+        """
+        output      [N,]
+        """
         return t.pdf(MSTLogScore.q(self,y), loc = 0, scale = 1, df = self.df + self.d) / MSTLogScore.T(self,y)
 
     def B(self,y):
-        return integrate.quad(lambda x: t.pdf(x, df = self.df + self.d) *  np.log(1 + x**2 / (self.df + self.d)), -np.inf, MSTLogScore.q(self,y))[0]
+        """
+        output      [N,]
+        """
+
+        q_val = MSTLogScore.q(self,y)
+        integrand = lambda x: t.pdf(x, df = self.df + self.d) *  np.log(1 + x**2 / (self.df + self.d))
+        vectorised_quad = np.vectorize(lambda b : integrate.quad(integrand, -np.inf, b)[0])
+    
+        return vectorised_quad(q_val)
 
     def T2bar(self,y):
         return t.cdf(MSTLogScore.q2(self,y), loc = 0, scale = 1, df = self.df + self.d + 2) / MSTLogScore.T(self,y)
@@ -296,7 +320,7 @@ def MultivariateSkewT(d):
         def fit(Y:np.ndarray):
             """
             Y       [d,N]
-            output      
+            output  [n_params,]    
             """
             Y_np = np.ascontiguousarray(Y, dtype=np.float64).T
             n_rows, n_cols = Y_np.shape # works for Y as a [N,d] matrix
@@ -392,7 +416,7 @@ def MultivariateSkewT(d):
         @property
         def stds(self):
             """
-            output      [2,]
+            output      [d,]
             """
             return np.sqrt(np.diag(self.disp))
 
