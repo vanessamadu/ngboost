@@ -348,7 +348,7 @@ def MultivariateSkewT(d):
             """
             output      [d,n]
             """
-            return np.transpose(np.array([self.rv() for _ in range(n)]))
+            return np.array([self.rv() for _ in range(n)]).T
 
         def sample(self, n):
             """_summary_
@@ -377,15 +377,12 @@ def MultivariateSkewT(d):
             A_inv       [d,d]
             """
             A_inv = np.linalg.inv(self.A)
-            return np.matmul(
-                        np.matmul(
-                            np.transpose(A_inv), np.diag(np.exp(-2 * self.rho ))),
-                            A_inv)
+            return (A_inv.T @ np.diag(np.exp(-2 * self.rho ))) @ A_inv
 
         @property
         def precision(self):
             A_val = self.A
-            return np.matmul(np.matmul(A_val, np.diag(np.exp(2 * self.rho))), np.transpose(A_val))
+            return (A_val @ np.diag(np.exp(2 * self.rho))) @ A_val.T
 
         @property
         def stds(self):
@@ -438,7 +435,7 @@ def MultivariateSkewT(d):
             Q(Y)    [1,N]
 
             """
-            scaled_y0 = (self.A).T, Y @ self.loc.reshape([-1,1])
+            scaled_y0 = (self.A).T @ (Y -self.loc.reshape([-1,1]))
             #columnwise dot product
             return np.sum(np.multiply(scaled_y0 , np.diag(np.exp(2 * self.rho)) @ scaled_y0),axis=0)
 
