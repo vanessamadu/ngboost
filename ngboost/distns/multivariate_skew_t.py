@@ -294,8 +294,12 @@ def MultivariateSkewT(d):
 
         @staticmethod
         def fit(Y:np.ndarray):
-            Y_np = np.ascontiguousarray(Y, dtype=np.float64)
-            n_rows, n_cols = Y_np.shape
+            """
+            Y       [d,N]
+            output      
+            """
+            Y_np = np.ascontiguousarray(Y, dtype=np.float64).T
+            n_rows, n_cols = Y_np.shape # works for Y as a [N,d] matrix
 
             #                 # Explicitly construct an R matrix (column-major order)
             r_matrix = robjects.r['matrix'](
@@ -334,10 +338,8 @@ def MultivariateSkewT(d):
             return np.concatenate([xi, rho, v_star_A, eta, [nu_tilde]])
         
         def rv(self):
-            """_summary_
-
-            Returns:
-                _type_: _description_
+            """
+            output      [n,]
             """
             u_star = multivariate_normal(mean = np.zeros(self.d + 1), cov = self.omega_star).rvs()
             v = chi2(df = self.df).rvs() / self.df
@@ -364,7 +366,7 @@ def MultivariateSkewT(d):
         @property
         def A(self):
             """
-            A       [d,d]
+            output       [d,d]
             """
             lt = np.eye(self.d)
             rows, cols = np.tril_indices(d, k=-1) 
@@ -374,59 +376,57 @@ def MultivariateSkewT(d):
         @property
         def disp(self):
             """
-            A_inv       [d,d]
+            output      [d,d]
             """
             A_inv = np.linalg.inv(self.A)
             return (A_inv.T @ np.diag(np.exp(-2 * self.rho ))) @ A_inv
 
         @property
         def precision(self):
+            """
+            output      [d,d]
+            """
             A_val = self.A
             return (A_val @ np.diag(np.exp(2 * self.rho))) @ A_val.T
 
         @property
         def stds(self):
-            """_summary_
-
-            Returns:
-                _type_: _description_
+            """
+            output      [2,]
             """
             return np.sqrt(np.diag(self.disp))
 
         @property
         def corr(self):
-            """_summary_
-
-            Returns:
-                _type_: _description_
+            """
+            output      [d,d]
             """
             return self.disp / np.outer(self.stds, self.stds)
 
         @property
         def omega_star(self):
-            """_summary_
-
-            Returns:
-                _type_: _description_
             """
-            delta_col = self.delta.reshape(-1, 1)   
+            output      [d+1,d+1]
+            """
+            delta_val = self.delta
             
             return np.block(
-                [[1, np.transpose(delta_col)],
-                 [delta_col, self.corr]]
+                [[1, delta_val],
+                 [delta_val.reshape([-1,1]), self.corr]]
             )
 
         @property
         def df(self):
-            """_summary_
-
-            Returns:
-                _type_: _description_
+            """
+            output     float
             """
             return nu0 + np.exp(self.nu_tilde)
 
         @property
         def skew(self):
+            """
+            output      [d,]
+            """
             return self.stds * self.eta
 
         def Q(self, Y):
@@ -441,25 +441,16 @@ def MultivariateSkewT(d):
 
         @property
         def delta(self):
-            """_summary_
-
-            Returns:
-                _type_: _description_
             """
-            return np.matmul(
-                self.corr, self.skew
-                ) / (
-                     np.sqrt( 1 + 
-                        np.matmul(
-                            np.matmul(
-                                np.transpose(self.skew),
-                                self.corr),
-                        self.skew)
-                    )
-                )
-            
+            output      [d,]
+            """
+            return (self.corr @ self.skew) / np.sqrt( 1 + ((self.skew).T @ self.corr) @ self.skew)
+                        
         @property
         def mu(self):
+            """
+            output      [d,]
+            """
             return self.delta * np.sqrt(self.df / np.pi) * gamma( (self.df - 1) / 2 ) / gamma(self.df / 2)
 
         @property
@@ -472,19 +463,15 @@ def MultivariateSkewT(d):
                 }
 
         def mean(self):
-            """_summary_
-
-            Returns:
-                _type_: _description_
+            """
+            output      [d,]
             """
             return self.loc + self.stds * self.mu
             
 
         def cov(self):
-            """_summary_
-            currently incorrect!
-            Returns:
-                _type_: _description_ 
+            """
+            output      [d,d]
             """
             outer_product_term = self.stds * self.mu
         
