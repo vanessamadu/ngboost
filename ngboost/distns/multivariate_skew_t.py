@@ -21,12 +21,7 @@ class MSTLogScore(LogScore):
 
     def d_score(self, Y):
         """
-
-        Args:
-            Y: The response data
-
-        Returns:
-            self.N, self.n_params shaped array containing the gradient.
+        output      [n_params,N]
 
         """
         VQ_val = MSTLogScore.VQ(self,Y)
@@ -36,12 +31,13 @@ class MSTLogScore(LogScore):
         duplication_val = MSTLogScore.duplication(self)
         precision_val = self.precision
         r_val = MSTLogScore.r(self,Y)
+        Y0 = Y - self.loc.reshape([-1,1])
 
-        grad_loc = np.matmul( precision_val, (1 + ( q_val * r_val ) / (self.df + self.d)) * VQ_val * (Y - self.loc) ) - \
-                    np.sqrt(VQ_val) * r_val  * self.eta
-        grad_v_disp = 0.5 * np.matmul(np.matmul(duplication_val, np.kron(precision_val, precision_val)),
-                                ((1 + q_val * r_val  / (self.df + self.d) ) * VQ_val * np.outer( Y - self.loc, Y - self.loc) - self.disp).flatten('F'))
-        grad_eta = np.sqrt(VQ_val) * r_val  * (Y - self.loc)
+        grad_loc = precision_val @ ((1 + ( q_val * r_val ) / (self.df + self.d)) * VQ_val * Y0)  - \
+                    np.sqrt(VQ_val) * r_val  * self.eta.reshape([-1,1])
+        grad_v_disp = 0.5 * np.matmul(duplication_val.T @ np.kron(precision_val, precision_val),
+                                ((1 + q_val * r_val  / (self.df + self.d) ) * VQ_val * (np.einsum('ji,ki -> ijk',Y0,Y0) - self.disp).reshape([self.d,self.d,-1])).T.reshape([len(q_val), self.d**2]).T) #flatten for [N x d x d] arrays
+        grad_eta = np.sqrt(VQ_val) * r_val  * Y0
         grad_df = 0.5 * (digamma( (self.df + self.d + 1) / 2 ) - digamma( self.df / 2 ) + 1 - \
                          (VQ_val * T2bar_val + Bbar_val + np.log(1 + self.Q(Y) / self.df))
                         )
@@ -146,7 +142,7 @@ class MSTLogScore(LogScore):
     def VQ(self, y):
         """
         y       [d,N]
-        output  [1,N]
+        output  [N,]
         """
         return (self.df + self.d) / (self.df + self.Q(y))
 
@@ -186,12 +182,21 @@ class MSTLogScore(LogScore):
         return vectorised_quad(q_val)
 
     def T2bar(self,y):
+        """
+        output      [N,]
+        """
         return t.cdf(MSTLogScore.q2(self,y), loc = 0, scale = 1, df = self.df + self.d + 2) / MSTLogScore.T(self,y)
 
     def Bbar(self,y):
+        """
+        output      [N,]
+        """
         return MSTLogScore.B(self,y)/MSTLogScore.T(self,y)
 
     def duplication(self):
+        """
+        output      
+        """
         output = np.zeros([int(self.d * (self.d + 1) / 2), self.d ** 2])
         for jj in range(self.d):
             for ii in range (jj, self.d):
