@@ -29,17 +29,21 @@ class MSTLogScore(LogScore):
             self.N, self.n_params shaped array containing the gradient.
 
         """
-        VQ_val = self.VQ(Y)
-        precision_val = self.precision()
-        r_val = self.r(Y)
+        VQ_val = MSTLogScore.VQ(self,Y)
+        q_val = MSTLogScore.q(self,Y)
+        T2bar_val = MSTLogScore.T2bar(self,Y)
+        Bbar_val = MSTLogScore.Bbar(self, Y) 
+        duplication_val = MSTLogScore.duplication(self)
+        precision_val = self.precision
+        r_val = MSTLogScore.r(self,Y)
 
-        grad_loc = np.matmul( precision_val, (1 + ( self.q(Y) * r_val ) / (self.df + self.d)) * VQ_val * (Y - self.loc) ) - \
+        grad_loc = np.matmul( precision_val, (1 + ( q_val * r_val ) / (self.df + self.d)) * VQ_val * (Y - self.loc) ) - \
                     np.sqrt(VQ_val) * r_val  * self.eta
-        grad_v_disp = 0.5 * np.matmul(np.matmul(self.duplication(), np.kron(precision_val, precision_val)),
-                                ((1 + self.q(Y) * r_val  / (self.df + self.d) ) * VQ_val * np.outer( Y - self.loc, Y - self.loc) - self.disp).flatten('F'))
+        grad_v_disp = 0.5 * np.matmul(np.matmul(duplication_val, np.kron(precision_val, precision_val)),
+                                ((1 + q_val * r_val  / (self.df + self.d) ) * VQ_val * np.outer( Y - self.loc, Y - self.loc) - self.disp).flatten('F'))
         grad_eta = np.sqrt(VQ_val) * r_val  * (Y - self.loc)
         grad_df = 0.5 * (digamma( (self.df + self.d + 1) / 2 ) - digamma( self.df / 2 ) + 1 - \
-                         (VQ_val * self.T2bar(Y) + self.Bbar(Y) + np.log( 1 + self.Q(Y) / self.df))
+                         (VQ_val * T2bar_val + Bbar_val + np.log(1 + self.Q(Y) / self.df))
                         )
         return np.concatenate([grad_loc, grad_v_disp, grad_eta, [grad_df]])
 
@@ -52,11 +56,11 @@ class MSTLogScore(LogScore):
              the ith observation in the last two indices.
 
         """
-        precision_val = self.precision()
-        eta_bar_val = self.eta_bar()
-        duplication_val = self.duplication()
-        Upsilonbar_val = self.Upsilonbar()
-        Upsilon_val = self.Upsilon()
+        precision_val = self.precision
+        eta_bar_val = MSTLogScore.eta_bar()
+        duplication_val = MSTLogScore.duplication()
+        Upsilonbar_val = MSTLogScore.Upsilonbar()
+        Upsilon_val = MSTLogScore.Upsilon()
         df_d = self.df + self.d
         disp_val = self.disp()
 
@@ -160,9 +164,8 @@ class MSTLogScore(LogScore):
     def T2bar(self,y):
         return t.cdf(MSTLogScore.q2(self,y), loc = 0, scale = 1, df = self.df + self.d + 2) / MSTLogScore.T(self,y)
 
-    @staticmethod
-    def Bbar(y):
-        return MSTLogScore.B(y)/MSTLogScore.T(y)
+    def Bbar(self,y):
+        return MSTLogScore.B(self,y)/MSTLogScore.T(self,y)
 
     def duplication(self):
         output = np.zeros([int(self.d * (self.d + 1) / 2), self.d ** 2])
@@ -242,9 +245,19 @@ def MultivariateSkewT(d):
         multi_output = True
 
         def __init__(self, params):
+            """
+            attr        shape
+            ------------------
+            d           int
+            loc         [d,]
+            rho         [d,]
+            v_star_A    [d*(d-1)/2,]
+            eta         [d,]
+            nu_tilde    float
+            """
             super().__init__(params)
 
-            self.d = d
+            self.d = int(d)
 
             self.loc = np.array(params[:d])
             self.rho = np.array(params[d:2*d])
@@ -253,13 +266,9 @@ def MultivariateSkewT(d):
             self.nu_tilde = params[-1]
             
         def logpdf(self, Y):
-            """_summary_
-
-            Args:
-                Y (_type_): _description_
-
-            Returns:
-                _type_: _description_
+            """
+            Y       [d,N]
+            Q       [N,N]
             """
 
             Q_val = self.Q(Y)
@@ -275,8 +284,8 @@ def MultivariateSkewT(d):
             term4 = np.log(2 * t.cdf(
                 np.sqrt(
                     (self.df + self.d) / (self.df + Q_val) 
-                    ) * np.dot(
-                        self.eta, Y - self.loc
+                    ) * np.matmul(
+                        np.transpose(self.eta), Y - self.loc
                     )
             , df = self.df + self.d))
 
@@ -335,15 +344,10 @@ def MultivariateSkewT(d):
             return self.loc + z / np.sqrt(v)
 
         def rvs(self, n):
-            """_summary_
-
-            Args:
-                n (_type_): _description_
-
-            Returns:
-                _type_: _description_
             """
-            return [self.rv() for _ in range(n)]
+            output      [d,n]
+            """
+            return np.transpose(np.array([self.rv() for _ in range(n)]))
 
         def sample(self, n):
             """_summary_
@@ -358,6 +362,9 @@ def MultivariateSkewT(d):
 
         @property
         def A(self):
+            """
+            A       [d,d]
+            """
             lt = np.eye(self.d)
             rows, cols = np.tril_indices(d, k=-1) 
             lt[rows,cols] = self.v_star_A
@@ -365,10 +372,8 @@ def MultivariateSkewT(d):
         
         @property
         def disp(self):
-            """_summary_
-
-            Returns:
-                _type_: _description_
+            """
+            A_inv       [d,d]
             """
             A_inv = np.linalg.inv(self.A)
             return np.matmul(
@@ -427,15 +432,12 @@ def MultivariateSkewT(d):
             return self.stds * self.eta
 
         def Q(self, Y):
-            """_summary_
-
-            Args:
-                Y (_type_): _description_
-
-            Returns:
-                _type_: _description_
             """
-            scaled_y0 = np.matmul(np.transpose(self.A), Y - self.loc)
+            Y       [d,N]
+            Q(Y)    [N,N]
+
+            """
+            scaled_y0 = np.matmul(np.transpose(self.A), Y - self.loc.reshape([-1,1]))
 
             return np.matmul(
                 np.matmul(np.transpose(scaled_y0), np.diag(np.exp(2 * self.rho))),
