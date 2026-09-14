@@ -269,6 +269,7 @@ def MultivariateSkewT(d):
             """
             Y       [d,N]
             Q       [N,N]
+            output  [1,N]
             """
 
             Q_val = self.Q(Y)
@@ -285,7 +286,7 @@ def MultivariateSkewT(d):
                 np.sqrt(
                     (self.df + self.d) / (self.df + Q_val) 
                     ) * np.matmul(
-                        np.transpose(self.eta), Y - self.loc
+                        np.transpose(self.eta), Y - self.loc.reshape([-1,1])
                     )
             , df = self.df + self.d))
 
@@ -434,15 +435,12 @@ def MultivariateSkewT(d):
         def Q(self, Y):
             """
             Y       [d,N]
-            Q(Y)    [N,N]
+            Q(Y)    [1,N]
 
             """
-            scaled_y0 = np.matmul(np.transpose(self.A), Y - self.loc.reshape([-1,1]))
-
-            return np.matmul(
-                np.matmul(np.transpose(scaled_y0), np.diag(np.exp(2 * self.rho))),
-                scaled_y0
-            )
+            scaled_y0 = (self.A).T, Y @ self.loc.reshape([-1,1])
+            #columnwise dot product
+            return np.sum(np.multiply(scaled_y0 , np.diag(np.exp(2 * self.rho)) @ scaled_y0),axis=0)
 
         @property
         def delta(self):
