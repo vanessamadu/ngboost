@@ -307,10 +307,10 @@ def MultivariateSkewT(d):
             attr        shape
             ------------------
             d           int
-            loc         [d,N]
-            rho         [d,N]
-            v_star_A    [d*(d-1)/2,N]
-            eta         [d,N]
+            loc         [N,d]
+            rho         [N,d]
+            v_star_A    [N,d*(d-1)/2]
+            eta         [N,d]
             nu_tilde    [N,]
             """
             super().__init__(params)
@@ -442,7 +442,7 @@ def MultivariateSkewT(d):
         @property
         def precision(self):
             """
-            output      [d,d]
+            output      [N,d,d]
             """
             A_val = self.A
             return (A_val @ np.diag(np.exp(2 * self.rho))) @ A_val.T
@@ -450,16 +450,18 @@ def MultivariateSkewT(d):
         @property
         def stds(self):
             """
-            output      [d,]
+            output      [N,d]
             """
-            return np.sqrt(np.diag(self.disp))
+            return np.sqrt(np.diagonal(self.disp, axis1=1, axis2=2))
 
         @property
         def corr(self):
             """
-            output      [d,d]
+            output      [N,d,d]
             """
-            return self.disp / np.outer(self.stds, self.stds)
+            stds_val = self.stds
+            return self.disp / np.einsum('ij,ik -> ijk',stds_val,stds_val)
+
 
         @property
         def omega_star(self):
@@ -476,14 +478,14 @@ def MultivariateSkewT(d):
         @property
         def df(self):
             """
-            output     float
+            output     [N,]
             """
             return nu0 + np.exp(self.nu_tilde)
 
         @property
         def skew(self):
             """
-            output      [d,]
+            output      [N,d]
             """
             return self.stds * self.eta
 
