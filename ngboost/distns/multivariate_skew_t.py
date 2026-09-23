@@ -316,6 +316,7 @@ def MultivariateSkewT(d):
             super().__init__(params)
 
             self.d = int(d)
+            self.n_obs = params.shape[0]
 
             self.loc = np.array(params[:d,:])
             self.rho = np.array(params[d:2*d,:])
@@ -424,20 +425,20 @@ def MultivariateSkewT(d):
         @property
         def A(self):
             """
-            output       [d,d]
+            output       [N,d,d]
             """
-            lt = np.eye(self.d)
+            lt = np.eye(self.d) * np.ones([self.n_obs,self.d,self.d])
             rows, cols = np.tril_indices(d, k=-1) 
-            lt[rows,cols] = self.v_star_A
+            lt[:,rows,cols] = self.v_star_A.reshape([-1,int(self.d*(self.d-1)/2)])
             return lt
         
         @property
         def disp(self):
             """
-            output      [d,d]
+            output      [N,d,d]
             """
             A_inv = np.linalg.inv(self.A)
-            return (A_inv.T @ np.diag(np.exp(-2 * self.rho ))) @ A_inv
+            return (np.transpose(A_inv,axes=[0,2,1]) * np.exp(-2 * self.rho )[:,None,:]) @ A_inv
 
         @property
         def precision(self):
@@ -445,7 +446,7 @@ def MultivariateSkewT(d):
             output      [N,d,d]
             """
             A_val = self.A
-            return (A_val @ np.diag(np.exp(2 * self.rho))) @ A_val.T
+            return (A_val @ np.exp(2 * self.rho)[:,None,:]) @ A_val.T
 
         @property
         def stds(self):
