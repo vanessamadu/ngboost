@@ -3,7 +3,7 @@
 from ngboost.distns.distn import RegressionDistn
 from ngboost.scores import LogScore
 
-from scipy.special import gammaln, digamma, gamma
+from scipy.special import gammaln, digamma, gamma, polygamma
 from scipy.stats import t, multivariate_normal, chi2, multivariate_t
 import scipy.integrate as integrate
 import numpy as np
@@ -53,12 +53,12 @@ class MSTLogScore(LogScore):
 
         """
         precision_val = self.precision
-        eta_bar_val = MSTLogScore.eta_bar()
-        duplication_val = MSTLogScore.duplication()
-        Upsilonbar_val = MSTLogScore.Upsilonbar()
-        Upsilon_val = MSTLogScore.Upsilon()
+        eta_bar_val = MSTLogScore.eta_bar(self)
+        duplication_val = MSTLogScore.duplication(self)
+        Upsilonbar_val = MSTLogScore.Upsilonbar(self)
+        Upsilon_val = MSTLogScore.Upsilon(self)
         df_d = self.df + self.d
-        disp_val = self.disp()
+        disp_val = self.disp
 
         F_xi_xi = ( (df_d) / (df_d + 2) ) * precision_val + \
                     ( 2 / (df_d + 1)) * ( (df_d) / (df_d - 1)) * self.M(self.r, self.r, 2, 4) * \
@@ -77,7 +77,7 @@ class MSTLogScore(LogScore):
                     np.matmul(np.matmul(self.eta, np.transpose(Upsilonbar_val.flatten('F'))),duplication_val)
             )
         F_xi_eta = 2 * np.sqrt( (df_d) / (df_d - 1) ) * ( self.b(self.df) / (self.b(df_d - 1)) ) * (
-            (df_d * self.M(self.r,1,2,1) - np.sqrt(df_d) * np.linalg.norm(self.eta) * self.M(self.r,1,1,3)**2) * np.matmul(Upsilon_val,disp_val) + \
+            (df_d * self.M(self.r,1,2,1) - np.sqrt(df_d) * np.linalg.norm(eta_bar_val) * self.M(self.r,self.r,1,3)) * np.matmul(Upsilon_val,disp_val) + \
             (self.M(self.r,1,0,3) + (1 / np.sqrt(df_d)) * self.M(self.r,self.r,1,3) * np.linalg.norm(eta_bar_val)) * np.matmul(Upsilonbar_val, disp_val)
         )
 
@@ -126,7 +126,7 @@ class MSTLogScore(LogScore):
         F_nu_nu = 0.5 * (((self.df + 2) / self.df) * ((df_d**2)/( (df_d + 1) * (df_d - 1))) * self.M(self.T2bar, self.T2bar, 0 ,4) + self.M(self.Bbar,self.Bbar,0,0) + \
                          (2 * df_d / (df_d - 1)) * self.M(self.T2bar, self.Bbar,0,2) ) + \
                     0.5 * (self.psi_diff((df_d - 1) / 2, (df_d) / 2) ** 2 + self.psi_diff((df_d - 1) / 2, (self.df) / 2) ** 2 + \
-                           self.psi_diff((self.df) / 2, (df_d) / 2) + self.psi_diff((self.df + 2) / 2, (df_d + 2) / 2 ) + \
+                           self.psi_prime_diff((self.df) / 2, (df_d) / 2) + self.psi_diff((self.df + 2) / 2, (df_d + 2) / 2 ) + \
                            self.psi_diff(self.df / 2, df_d / 2) - self.psi_diff((df_d - 1) / 2, (self.df) / 2) * self.psi_diff((df_d - 1) / 2, (df_d) / 2)) - \
                     0.25 * (self.psi_diff( (df_d + 1) / 2 , self.df / 2) + 1) ** 2
 
@@ -210,37 +210,60 @@ class MSTLogScore(LogScore):
 
     ## Fisher aux functions
 
-    def M(self, g, h, i , j , k = 0):
-       a_eta_bar_nu_val = self.a_eta_bar_nu()
-       W1_val = self.W1()
-       return self.expectation(
+    def M(self, Y, g, h, i , j , k = 0):
+       a_eta_bar_nu_val = MSTLogScore.a_eta_bar_nu(self)
+       W1_val = MSTLogScore.W1(self, Y)
+       return MSTLogScore.expectation(
             (g(a_eta_bar_nu_val * W1_val) * h(a_eta_bar_nu_val * W1_val)) * \
             t.cdf(a_eta_bar_nu_val * W1_val) * (W1_val ** i) * (1 - W1_val ** 2) ** (j / 2) * \
-            np.log(1 - self.W1) ** k
+            np.log(1 - W1_val) ** k
         )
 
     def eta_bar(self):
+        """
+        output      [d,]
+        """
         A_inv = np.linalg.inv(self.A)
-        return np.matmul(np.matmul(np.diag(np.exp(-self.rho)), A_inv), self.eta)
+        return (np.diag(np.exp(-self.rho)) @ A_inv) @ self.eta
 
     def Upsilon(self):
-        return np.outer(self.eta, self.eta)/np.linalg.norm(self.eta_bar())
+        """
+        output      [d,d]
+        """
+        return np.outer(self.eta, self.eta)/np.linalg.norm(MSTLogScore.eta_bar(self))
 
     def Upsilonbar(self):
-        return self.precision() - self.Upsilon()
+        """
+        output      [d,d]
+        """
+        return self.precision - MSTLogScore.Upsilon(self)
 
-    def b(self, k):
+    def b(self, k:int):
+        """
+        output      float
+        """
         return 2 * t.pdf(0, df = self.df + k)
 
     def a_eta_bar_nu(self):
-        return np.sqrt(self.df + self.d) * np.linalg.norm(self.eta_bar())
+        """
+        output      float
+        """
+        return np.sqrt(self.df + self.d) * np.linalg.norm(MSTLogScore.eta_bar(self))
 
-    def W1(self):
-        S1_val = self.S1()
+    def W1(self, Y):
+        """
+        output      [N,]
+        PROBLEM: VALUE UNDER THE SQUARE ROOT IS NOT ALWAYS NON-NEGATIVE
+        """
+        S1_val = MSTLogScore.S1(self,Y)
         return 1 / np.sqrt(S1_val + S1_val ** 2)
 
     def S1(self, Y):
-        X = multivariate_t.rvs(np.zeros(self.d), np.eye(self.d), self.df)
+        """
+        output      [N,]
+        PROBLEM: VALUE UNDER THE SQUARE ROOT IS NOT ALWAYS NON-NEGATIVE
+        """
+        X = multivariate_t.rvs(loc = np.zeros(self.d), shape = np.eye(self.d), df = self.df)
         X_1 = X[0]
         Q_1 = self.Q(Y) - X_1 ** 2
 
@@ -249,6 +272,10 @@ class MSTLogScore(LogScore):
     @staticmethod
     def psi_diff(a,b):
         return digamma(a) - digamma(b)
+
+    @staticmethod
+    def psi_prime_diff(a,b):
+        return polygamma(1,a) - polygamma(1,b)
 
     @staticmethod
     def expectation(val):
@@ -275,24 +302,26 @@ def MultivariateSkewT(d):
 
         def __init__(self, params):
             """
+            params      [n_params]
+
             attr        shape
             ------------------
             d           int
-            loc         [d,]
-            rho         [d,]
-            v_star_A    [d*(d-1)/2,]
-            eta         [d,]
-            nu_tilde    float
+            loc         [d,N]
+            rho         [d,N]
+            v_star_A    [d*(d-1)/2,N]
+            eta         [d,N]
+            nu_tilde    [N,]
             """
             super().__init__(params)
 
             self.d = int(d)
 
-            self.loc = np.array(params[:d])
-            self.rho = np.array(params[d:2*d])
-            self.v_star_A = np.array(params[2*d: int(2*d + d*(d-1)/2)])
-            self.eta = np.array(params[int(2*d + d*(d-1)/2):int(d + 2*d + d*(d-1)/2)])
-            self.nu_tilde = params[-1]
+            self.loc = np.array(params[:d,:])
+            self.rho = np.array(params[d:2*d,:])
+            self.v_star_A = np.array(params[2*d: int(2*d + d*(d-1)/2),:])
+            self.eta = np.array(params[int(2*d + d*(d-1)/2):int(d + 2*d + d*(d-1)/2),:])
+            self.nu_tilde = np.array(params[-1,:])
             
         def logpdf(self, Y):
             """
@@ -461,7 +490,7 @@ def MultivariateSkewT(d):
         def Q(self, Y):
             """
             Y       [d,N]
-            Q(Y)    [1,N]
+            Q(Y)    [N,]
 
             """
             scaled_y0 = (self.A).T @ (Y -self.loc.reshape([-1,1]))
