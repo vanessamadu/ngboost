@@ -8,12 +8,12 @@ from scipy.stats import t, multivariate_normal, chi2, multivariate_t
 import scipy.integrate as integrate
 import numpy as np
 
-import rpy2.robjects as robjects
-from rpy2.robjects.packages import importr
+# import rpy2.robjects as robjects
+# from rpy2.robjects.packages import importr
 
-# import R packages
-base = importr('base')
-sn = importr('sn')
+# # import R packages
+# base = importr('base')
+# sn = importr('sn')
 
 class MSTLogScore(LogScore):
     def score(self, Y):
@@ -313,22 +313,23 @@ def MultivariateSkewT(d):
             eta         [N,d]
             nu_tilde    [N,]
             """
+            params = np.array(params)
             super().__init__(params)
 
             self.d = int(d)
             self.n_obs = params.shape[0]
 
-            self.loc = np.array(params[:d,:])
-            self.rho = np.array(params[d:2*d,:])
-            self.v_star_A = np.array(params[2*d: int(2*d + d*(d-1)/2),:])
-            self.eta = np.array(params[int(2*d + d*(d-1)/2):int(d + 2*d + d*(d-1)/2),:])
-            self.nu_tilde = np.array(params[-1,:])
+            self.loc = np.array(params[:,:d])
+            self.rho = np.array(params[:,d:2*d])
+            self.v_star_A = np.array(params[:,2*d: int(2*d + d*(d-1)/2)])
+            self.eta = np.array(params[:,int(2*d + d*(d-1)/2):int(d + 2*d + d*(d-1)/2)])
+            self.nu_tilde = np.array(params[:,-1])
             
         def logpdf(self, Y):
             """
-            Y       [d,N]
-            Q       [N,N]
-            output  [1,N]
+            Y       [N,d]
+            Q       [N,]
+            output  [N,]
             """
 
             Q_val = self.Q(Y)
@@ -337,90 +338,86 @@ def MultivariateSkewT(d):
                     + gammaln((self.df + self.d) / 2) \
                     - gammaln(self.df / 2)
             
-            term2 = np.sum(self.rho)
+            term2 = np.sum(self.rho,axis=1)
 
             term3 = - (self.df / 2) * (1 + self.d / self.df) * np.log(1 + Q_val / self.df)
 
             term4 = np.log(2 * t.cdf(
                 np.sqrt(
                     (self.df + self.d) / (self.df + Q_val) 
-                    ) * np.matmul(
-                        np.transpose(self.eta), Y - self.loc.reshape([-1,1])
+                    ) * np.einsum('ik,ik -> i',
+                        self.eta, Y - self.loc
                     )
             , df = self.df + self.d))
 
             return term1 + term2 + term3 + term4
 
         @staticmethod
-        def fit(Y:np.ndarray):
+        def fit(Y):
             """
             Y       [d,N]
             output  [n_params,]    
             """
-            Y_np = np.ascontiguousarray(Y, dtype=np.float64).T
-            n_rows, n_cols = Y_np.shape # works for Y as a [N,d] matrix
+            pass
+            # Y_np = np.ascontiguousarray(Y, dtype=np.float64).T
+            # n_rows, n_cols = Y_np.shape # works for Y as a [N,d] matrix
 
-            #                 # Explicitly construct an R matrix (column-major order)
-            r_matrix = robjects.r['matrix'](
-                robjects.FloatVector(Y_np.ravel(order='F')), 
-                nrow=n_rows, 
-                ncol=n_cols
-                )
+            # #                 # Explicitly construct an R matrix (column-major order)
+            # r_matrix = robjects.r['matrix'](
+            #     robjects.FloatVector(Y_np.ravel(order='F')), 
+            #     nrow=n_rows, 
+            #     ncol=n_cols
+            #     )
 
-            robjects.r.assign("Y_mat", r_matrix)
-            fit = robjects.r('sn::selm(Y_mat ~ 1, family = "ST")')
-            dp = robjects.r['slot'](fit,"param").rx2('dp')
+            # robjects.r.assign("Y_mat", r_matrix)
+            # fit = robjects.r('sn::selm(Y_mat ~ 1, family = "ST")')
+            # dp = robjects.r['slot'](fit,"param").rx2('dp')
 
 
-            # Extract parameter list (dp: direct parameters xi, Omega, alpha, nu)
-            xi = np.squeeze(np.array(dp.rx2('beta')) if 'beta' in dp.names else np.array(dp.rx2('xi')))
-            disp = np.array(dp.rx2('Omega'))
-            skew = np.array(dp.rx2('alpha'))
-            df = float(np.array(dp.rx2('nu'))[0])
+            # # Extract parameter list (dp: direct parameters xi, Omega, alpha, nu)
+            # xi = np.squeeze(np.array(dp.rx2('beta')) if 'beta' in dp.names else np.array(dp.rx2('xi')))
+            # disp = np.array(dp.rx2('Omega'))
+            # skew = np.array(dp.rx2('alpha'))
+            # df = float(np.array(dp.rx2('nu'))[0])
 
-            #             # find A and rho from disp
-            Omega_inv = np.linalg.inv(disp)
-            L = np.linalg.cholesky(Omega_inv)
-            diagL = np.diag(L)
-            A = L / diagL[np.newaxis, :]
-            rho = np.log(diagL)
+            # #             # find A and rho from disp
+            # Omega_inv = np.linalg.inv(disp)
+            # L = np.linalg.cholesky(Omega_inv)
+            # diagL = np.diag(L)
+            # A = L / diagL[np.newaxis, :]
+            # rho = np.log(diagL)
 
-            eta = skew 
-            if df <= nu0:
-                nu_tilde = 1e-5  # set to small value if fit degrees of freedom is less than nu0
-            else:
-                nu_tilde = np.log(df - nu0) 
+            # eta = skew 
+            # if df <= nu0:
+            #     nu_tilde = 1e-5  # set to small value if fit degrees of freedom is less than nu0
+            # else:
+            #     nu_tilde = np.log(df - nu0) 
 
-            mask = np.tril(A, k=-1) != 0
-            v_star_A = A[mask]
+            # mask = np.tril(A, k=-1) != 0
+            # v_star_A = A[mask]
 
-            return np.concatenate([xi, rho, v_star_A, eta, [nu_tilde]])
+            # return np.concatenate([xi, rho, v_star_A, eta, [nu_tilde]])
         
         def rv(self):
             """
-            output      [n,]
+            output      [N,d]
             """
-            u_star = multivariate_normal(mean = np.zeros(self.d + 1), cov = self.omega_star).rvs()
+            u_star = np.array([multivariate_normal(mean = np.zeros(self.d + 1), cov = cov).rvs() for cov in self.omega_star])
             v = chi2(df = self.df).rvs() / self.df
-            z = self.stds * u_star[1:] * np.sign(u_star[0])
-            return self.loc + z / np.sqrt(v)
+            z = self.stds * u_star[:,1:] * np.sign(u_star[:,0])[:,None]
+            return self.loc + z / np.sqrt(v)[:,None]
 
-        def rvs(self, n):
+        def rvs(self, m):
             """
-            output      [d,n]
+            output      [m,N,d]
             """
-            return np.array([self.rv() for _ in range(n)]).T
+            return np.array([self.rv() for _ in range(m)])
 
-        def sample(self, n):
-            """_summary_
-
-            Args:
-                n (_type_): _description_
-
-            Returns:
-                _type_: _description_
+        def sample(self, m):
             """
-            return self.rvs(n)
+            output      [m,N,d]
+            """
+            return self.rvs(m)
 
         @property
         def A(self):
@@ -446,7 +443,7 @@ def MultivariateSkewT(d):
             output      [N,d,d]
             """
             A_val = self.A
-            return (A_val @ np.exp(2 * self.rho)[:,None,:]) @ A_val.T
+            return (A_val * np.exp(2 * self.rho)[:,None,:]) @ np.transpose(A_val, axes=[0,2,1])
 
         @property
         def stds(self):
