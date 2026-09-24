@@ -463,17 +463,16 @@ def MultivariateSkewT(d):
             stds_val = self.stds
             return self.disp / np.einsum('ij,ik -> ijk',stds_val,stds_val)
 
-
         @property
         def omega_star(self):
             """
-            output      [d+1,d+1]
+            output      [N,d+1,d+1]
             """
             delta_val = self.delta
             
             return np.block(
-                [[1, delta_val],
-                 [delta_val.reshape([-1,1]), self.corr]]
+                [[np.ones(self.n_obs)[:,None,None], delta_val[:,None,:]],
+                 [delta_val[:,:,None], self.corr]]
             )
 
         @property
@@ -492,13 +491,12 @@ def MultivariateSkewT(d):
 
         def Q(self, Y):
             """
-            Y       [d,N]
+            Y       [N,d]
             Q(Y)    [N,]
 
             """
-            scaled_y0 = (self.A).T @ (Y -self.loc.reshape([-1,1]))
-            #columnwise dot product
-            return np.sum(np.multiply(scaled_y0 , np.diag(np.exp(2 * self.rho)) @ scaled_y0),axis=0)
+            scaled_y0 = np.einsum('ijk,ik -> ij', np.transpose(self.A,axes=[0,2,1]) , (Y - self.loc))
+            return np.einsum('ij,ij -> i', scaled_y0 * np.exp(2 * self.rho), scaled_y0)
 
         @property
         def delta(self):
@@ -535,6 +533,7 @@ def MultivariateSkewT(d):
             """
             return self.loc + self.stds * self.mu
 
+        @property
         def cov(self):
             """
             output      [N,d,d]
