@@ -503,16 +503,21 @@ def MultivariateSkewT(d):
         @property
         def delta(self):
             """
-            output      [d,]
+            output      [N,d]
             """
-            return (self.corr @ self.skew) / np.sqrt( 1 + ((self.skew).T @ self.corr) @ self.skew)
+            corr_val = self.corr
+            return np.einsum('ijk,ik -> ij', corr_val,self.skew) / np.sqrt( 1 + 
+                                                                           np.einsum('ij,ij -> i',
+                                                                                     np.einsum('ik,ikj -> ij', self.skew, corr_val),
+                                                                                     self.skew)
+                                                                           )[:, None]
                         
         @property
         def mu(self):
             """
-            output      [d,]
+            output      [N,d]
             """
-            return self.delta * np.sqrt(self.df / np.pi) * gamma( (self.df - 1) / 2 ) / gamma(self.df / 2)
+            return self.delta * (np.sqrt(self.df / np.pi) * gamma( (self.df - 1) / 2 ) / gamma(self.df / 2))[:, None]
 
         @property
         def params(self):
@@ -523,20 +528,20 @@ def MultivariateSkewT(d):
                 "df": self.df
                 }
 
+        @property
         def mean(self):
             """
-            output      [d,]
+            output      [N,d]
             """
             return self.loc + self.stds * self.mu
-            
 
         def cov(self):
             """
-            output      [d,d]
+            output      [N,d,d]
             """
             outer_product_term = self.stds * self.mu
         
-            return ( self.df / (self.df - 2) ) * self.disp - np.outer(outer_product_term, outer_product_term)
+            return ( self.df / (self.df - 2) )[:,None,None] * self.disp - np.einsum('ij,ik -> ijk', outer_product_term, outer_product_term)
 
     return MST
 
