@@ -31,7 +31,7 @@ class MSTLogScore(LogScore):
         duplication_val = MSTLogScore.duplication(self)
         precision_val = self.precision
         r_val = MSTLogScore.r(self,Y)
-        Y0 = Y - self.loc.reshape([-1,1])
+        Y0 = Y - self.loc
 
         grad_loc = precision_val @ ((1 + ( q_val * r_val ) / (self.df + self.d)) * VQ_val * Y0)  - \
                     np.sqrt(VQ_val) * r_val  * self.eta.reshape([-1,1])
@@ -141,7 +141,7 @@ class MSTLogScore(LogScore):
 
     def VQ(self, y):
         """
-        y       [d,N]
+        y       [N,d]
         output  [N,]
         """
         return (self.df + self.d) / (self.df + self.Q(y))
@@ -150,7 +150,7 @@ class MSTLogScore(LogScore):
         """
         output      [N,]
         """
-        return np.sqrt(MSTLogScore.VQ(self, y)) * np.sum(np.multiply(self.eta.reshape([-1,1]), y - self.loc.reshape([-1,1])),axis=0) # elementwise columnwise dot product
+        return np.sqrt(MSTLogScore.VQ(self, y)) * np.einsum('ij,ij -> i', self.eta, y-self.loc)
 
     def q2(self, y):
         """
@@ -176,10 +176,11 @@ class MSTLogScore(LogScore):
         """
 
         q_val = MSTLogScore.q(self,y)
-        integrand = lambda x: t.pdf(x, df = self.df + self.d) *  np.log(1 + x**2 / (self.df + self.d))
-        vectorised_quad = np.vectorize(lambda b : integrate.quad(integrand, -np.inf, b)[0])
+        def integrand(df_val,d):
+            return lambda x: t.pdf(x, df = df_val + d) *  np.log(1 + x**2 / (df_val + d))
+        vectorised_quad = np.vectorize(lambda b,df_val : integrate.quad(integrand(df_val,self.d), -np.inf, b)[0])
     
-        return vectorised_quad(q_val)
+        return vectorised_quad(q_val,self.df)
 
     def T2bar(self,y):
         """
@@ -221,34 +222,34 @@ class MSTLogScore(LogScore):
 
     def eta_bar(self):
         """
-        output      [d,]
+        output      [N,d]
         """
         A_inv = np.linalg.inv(self.A)
-        return (np.diag(np.exp(-self.rho)) @ A_inv) @ self.eta
+        return np.einsum('ijk,ik -> ij', np.exp(-self.rho)[:,None,:] * A_inv, self.eta)
 
     def Upsilon(self):
         """
-        output      [d,d]
+        output      [N,d,d]
         """
-        return np.outer(self.eta, self.eta)/np.linalg.norm(MSTLogScore.eta_bar(self))
+        return np.einsum('ij,ik -> ijk', self.eta, self.eta)/np.linalg.norm(MSTLogScore.eta_bar(self),axis=1)[:,None,None]
 
     def Upsilonbar(self):
         """
-        output      [d,d]
+        output      [N,d,d]
         """
         return self.precision - MSTLogScore.Upsilon(self)
 
     def b(self, k:int):
         """
-        output      float
+        output      [N,]
         """
         return 2 * t.pdf(0, df = self.df + k)
 
     def a_eta_bar_nu(self):
         """
-        output      float
+        output      [N,]
         """
-        return np.sqrt(self.df + self.d) * np.linalg.norm(MSTLogScore.eta_bar(self))
+        return np.sqrt(self.df + self.d) * np.linalg.norm(MSTLogScore.eta_bar(self),axis=1)
 
     def W1(self, Y):
         """
