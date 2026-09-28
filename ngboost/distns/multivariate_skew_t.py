@@ -162,13 +162,13 @@ class MSTLogScore(LogScore):
         """
         output      [N,]
         """
-        return t.cdf(MSTLogScore.q(self,y), loc = 0, scale = 1, df = self.df + self.d)
+        return np.array([t.cdf(MSTLogScore.q(self,y), loc = 0, scale = 1, df = df_val + self.d) for df_val in self.df]) 
 
     def r(self,y):
         """
         output      [N,]
         """
-        return t.pdf(MSTLogScore.q(self,y), loc = 0, scale = 1, df = self.df + self.d) / MSTLogScore.T(self,y)
+        return np.array([t.pdf(MSTLogScore.q(self,y), loc = 0, scale = 1, df = df_val + self.d) for df_val in self.df]) / MSTLogScore.T(self,y)
 
     def B(self,y):
         """
@@ -186,7 +186,7 @@ class MSTLogScore(LogScore):
         """
         output      [N,]
         """
-        return t.cdf(MSTLogScore.q2(self,y), loc = 0, scale = 1, df = self.df + self.d + 2) / MSTLogScore.T(self,y)
+        return  np.array([t.cdf(MSTLogScore.q2(self,y), loc = 0, scale = 1, df = df_val + self.d + 2) for df_val in self.df]) / MSTLogScore.T(self,y)
 
     def Bbar(self,y):
         """
@@ -254,18 +254,18 @@ class MSTLogScore(LogScore):
     def W1(self, Y):
         """
         output      [N,]
-        PROBLEM: VALUE UNDER THE SQUARE ROOT IS NOT ALWAYS NON-NEGATIVE
         """
         S1_val = MSTLogScore.S1(self,Y)
-        return 1 / np.sqrt(S1_val + S1_val ** 2)
+        return S1_val  /  np.sqrt(1 + S1_val ** 2)
 
     def S1(self, Y):
         """
         output      [N,]
-        PROBLEM: VALUE UNDER THE SQUARE ROOT IS NOT ALWAYS NON-NEGATIVE
+        PROBLEM: VALUE UNDER THE SQUARE ROOT SHOULD ALWAYS BE POSITIVE
         """
-        X = multivariate_t.rvs(loc = np.zeros(self.d), shape = np.eye(self.d), df = self.df)
-        X_1 = X[0]
+        X = np.array([multivariate_t.rvs(loc = np.zeros(self.d), shape = np.eye(self.d), df = df_vals) for df_vals in self.df])
+        
+        X_1 = X[:,0]
         Q_1 = self.Q(Y) - X_1 ** 2
 
         return (X_1 / np.sqrt(self.df)) / np.sqrt(1 + Q_1 / self.df)
