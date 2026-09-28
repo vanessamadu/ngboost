@@ -33,11 +33,12 @@ class MSTLogScore(LogScore):
         r_val = MSTLogScore.r(self,Y)
         Y0 = Y - self.loc
 
-        grad_loc = precision_val @ ((1 + ( q_val * r_val ) / (self.df + self.d)) * VQ_val * Y0)  - \
-                    np.sqrt(VQ_val) * r_val  * self.eta.reshape([-1,1])
+        grad_loc = np.einsum('ijk,ik -> ij', precision_val, (((1 + ( q_val * r_val ) / (self.df + self.d)) * VQ_val)[:,None] * Y0))  - \
+                    (np.sqrt(VQ_val) * r_val)[:,None]  * self.eta
         grad_v_disp = 0.5 * np.matmul(duplication_val.T @ np.kron(precision_val, precision_val),
                                 ((1 + q_val * r_val  / (self.df + self.d) ) * VQ_val * (np.einsum('ji,ki -> ijk',Y0,Y0) - self.disp).reshape([self.d,self.d,-1])).T.reshape([len(q_val), self.d**2]).T) #flatten for [N x d x d] arrays
-        grad_eta = np.sqrt(VQ_val) * r_val  * Y0
+        grad_eta = (np.sqrt(VQ_val) * r_val)[:,None] * Y0
+
         grad_df = 0.5 * (digamma( (self.df + self.d + 1) / 2 ) - digamma( self.df / 2 ) + 1 - \
                          (VQ_val * T2bar_val + Bbar_val + np.log(1 + self.Q(Y) / self.df))
                         )
@@ -162,13 +163,13 @@ class MSTLogScore(LogScore):
         """
         output      [N,]
         """
-        return np.array([t.cdf(MSTLogScore.q(self,y), loc = 0, scale = 1, df = df_val + self.d) for df_val in self.df]) 
+        return np.array([t.cdf(q_val, loc = 0, scale = 1, df = df_val + self.d) for q_val,df_val in zip(MSTLogScore.q(self,y),self.df)]) 
 
     def r(self,y):
         """
         output      [N,]
         """
-        return np.array([t.pdf(MSTLogScore.q(self,y), loc = 0, scale = 1, df = df_val + self.d) for df_val in self.df]) / MSTLogScore.T(self,y)
+        return np.array([t.pdf(q_val, loc = 0, scale = 1, df = df_val + self.d) for q_val,df_val in zip(MSTLogScore.q(self,y),self.df)]) / MSTLogScore.T(self,y)
 
     def B(self,y):
         """
@@ -186,7 +187,7 @@ class MSTLogScore(LogScore):
         """
         output      [N,]
         """
-        return  np.array([t.cdf(MSTLogScore.q2(self,y), loc = 0, scale = 1, df = df_val + self.d + 2) for df_val in self.df]) / MSTLogScore.T(self,y)
+        return  np.array([t.cdf(q2_val, loc = 0, scale = 1, df = df_val + self.d + 2) for q2_val, df_val in zip(MSTLogScore.q2(self,y),self.df)]) / MSTLogScore.T(self,y)
 
     def Bbar(self,y):
         """
