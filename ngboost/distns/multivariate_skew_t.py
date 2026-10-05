@@ -35,14 +35,16 @@ class MSTLogScore(LogScore):
 
         grad_loc = np.einsum('ijk,ik -> ij', precision_val, (((1 + ( q_val * r_val ) / (self.df + self.d)) * VQ_val)[:,None] * Y0))  - \
                     (np.sqrt(VQ_val) * r_val)[:,None]  * self.eta
-        grad_v_disp = 0.5 * np.matmul(duplication_val.T @ np.kron(precision_val, precision_val),
-                                ((1 + q_val * r_val  / (self.df + self.d) ) * VQ_val * (np.einsum('ji,ki -> ijk',Y0,Y0) - self.disp).reshape([self.d,self.d,-1])).T.reshape([len(q_val), self.d**2]).T) #flatten for [N x d x d] arrays
+        grad_v_disp = 0.5 * np.einsum('ijk,ik -> ij', duplication_val.T @ MSTLogScore.elementwise_kronecker(precision_val, precision_val),
+                        (
+                            ( ( 1 + q_val * r_val  / (self.df + self.d) ) * VQ_val )[:,None,None] * np.einsum('ij,ik -> ijk',Y0,Y0) - self.disp 
+                            ).reshape([len(q_val),self.d ** 2] ) )
         grad_eta = (np.sqrt(VQ_val) * r_val)[:,None] * Y0
 
         grad_df = 0.5 * (digamma( (self.df + self.d + 1) / 2 ) - digamma( self.df / 2 ) + 1 - \
                          (VQ_val * T2bar_val + Bbar_val + np.log(1 + self.Q(Y) / self.df))
                         )
-        return np.concatenate([grad_loc, grad_v_disp, grad_eta, [grad_df]])
+        return np.concatenate([grad_loc, grad_v_disp, grad_eta, grad_df[:,None]], axis = 1)
 
     def metric(self, Y):
 
@@ -210,6 +212,9 @@ class MSTLogScore(LogScore):
                 output += np.outer(u, T.flatten('F'))
         return np.transpose(output)
 
+    @staticmethod
+    def elementwise_kronecker(A,B):
+        return np.array([np.kron(elem1,elem2) for elem1,elem2 in zip(A,B)])
     ## Fisher aux functions
 
     def M(self, Y, g, h, i , j , k = 0):
