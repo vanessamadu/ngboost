@@ -226,16 +226,32 @@ class MSTLogScore(LogScore):
         return ( (1 - u ** 2) ** (b - 1) ) / beta(a,b)
 
     def M(self, g, h, i , j , k = 0):
+
+        """ VECTORISATION TO BE FIXED """
+
         a_eta_bar_nu_val = MSTLogScore.a_eta_bar_nu(self)
+
         if g == 1:
-           g = lambda x : 1
+           g = lambda self, x : 1
         if h == 1:
-            h = lambda x : 1
-        rv_function = lambda W1_val : (g(a_eta_bar_nu_val * W1_val) * h(a_eta_bar_nu_val * W1_val)) * \
-            t.cdf(a_eta_bar_nu_val * W1_val) * (W1_val ** i) * (1 - W1_val ** 2) ** (j / 2) * \
+            h = lambda self, x : 1
+
+        g_val = lambda W1_val : g(self, a_eta_bar_nu_val * W1_val)
+        h_val = lambda W1_val : h(self, a_eta_bar_nu_val * W1_val)
+
+        rv_function = lambda W1_val, df_val, a_eta_bar_nu_val : (g(self, a_eta_bar_nu_val * W1_val) * h(self, a_eta_bar_nu_val * W1_val)) * \
+            t.cdf(a_eta_bar_nu_val * W1_val, df = df_val) * (W1_val ** i) * (1 - W1_val ** 2) ** (j / 2) * \
             np.log(1 - W1_val) ** k
 
-        return MSTLogScore.expectation(rv_function)
+        return MSTLogScore.pearson2_expectation(self, rv_function)
+
+def pearson2_expectation(self, rv_function = lambda x, df_val, a_eta_bar_nu_val : x):
+
+    def integrand(df_val, a_eta_bar_nu_val, d):
+        return lambda x: rv_function(x, df_val, a_eta_bar_nu_val) * MSTLogScore.pearson2_pdf(x, 1/2, ( df_val + d - 1 ) / 2)
+    vectorised_quad = np.vectorize(lambda df_val, a_eta_bar_nu_val : integrate.quad(integrand(df_val,a_eta_bar_nu_val,self.d), -1, 1)[0])
+
+    return vectorised_quad(self.df, MSTLogScore.a_eta_bar_nu(self))
 
     def eta_bar(self):
         """
@@ -294,14 +310,6 @@ class MSTLogScore(LogScore):
     @staticmethod
     def psi_prime_diff(a,b):
         return polygamma(1,a) - polygamma(1,b)
-
-    def pearson2_expectation(self, rv_function = lambda x:x):
-
-        def integrand(df_val, d):
-            return lambda x: rv_function(x) * MSTLogScore.pearson2_expectation(x, 1/2, ( df_val + d - 1) / 2)
-        vectorised_quad = np.vectorize(lambda df_val : integrate.quad(integrand(df_val,self.d), -1, 1)[0])
-            
-        return vectorised_quad(self.df)
 
 def MultivariateSkewT(d):
     """
