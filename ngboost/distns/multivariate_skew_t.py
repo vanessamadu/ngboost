@@ -1,9 +1,11 @@
 """
 """
+import warnings 
+
 from ngboost.distns.distn import RegressionDistn
 from ngboost.scores import LogScore
 
-from scipy.special import gammaln, digamma, gamma, polygamma
+from scipy.special import gammaln, digamma, gamma, polygamma, beta
 from scipy.stats import t, multivariate_normal, chi2, multivariate_t
 import scipy.integrate as integrate
 import numpy as np
@@ -217,14 +219,23 @@ class MSTLogScore(LogScore):
         return np.array([np.kron(elem1,elem2) for elem1,elem2 in zip(A,B)])
     ## Fisher aux functions
 
-    def M(self, Y, g, h, i , j , k = 0):
-       a_eta_bar_nu_val = MSTLogScore.a_eta_bar_nu(self)
-       W1_val = MSTLogScore.W1(self, Y)
-       return MSTLogScore.expectation(
-            (g(a_eta_bar_nu_val * W1_val) * h(a_eta_bar_nu_val * W1_val)) * \
+    @staticmethod
+    def pearson2_pdf(u,a,b):
+        if abs(u) >= 1:
+            warnings.warn(f"Pearson II distribution is only defined for |u| < 1. Passed value was u = {u}")
+        return ( (1 - u ** 2) ** (b - 1) ) / beta(a,b)
+
+    def M(self, g, h, i , j , k = 0):
+        a_eta_bar_nu_val = MSTLogScore.a_eta_bar_nu(self)
+        if g == 1:
+           g = lambda x : 1
+        if h == 1:
+            h = lambda x : 1
+        rv_function = lambda W1_val : (g(a_eta_bar_nu_val * W1_val) * h(a_eta_bar_nu_val * W1_val)) * \
             t.cdf(a_eta_bar_nu_val * W1_val) * (W1_val ** i) * (1 - W1_val ** 2) ** (j / 2) * \
             np.log(1 - W1_val) ** k
-        )
+
+        return MSTLogScore.expectation(rv_function)
 
     def eta_bar(self):
         """
@@ -284,9 +295,13 @@ class MSTLogScore(LogScore):
     def psi_prime_diff(a,b):
         return polygamma(1,a) - polygamma(1,b)
 
-    @staticmethod
-    def expectation(val):
-        pass
+    def pearson2_expectation(self, rv_function = lambda x:x):
+
+        def integrand(df_val, d):
+            return lambda x: rv_function(x) * MSTLogScore.pearson2_expectation(x, 1/2, ( df_val + d - 1) / 2)
+        vectorised_quad = np.vectorize(lambda df_val : integrate.quad(integrand(df_val,self.d), -1, 1)[0])
+            
+        return vectorised_quad(self.df)
 
 def MultivariateSkewT(d):
     """
