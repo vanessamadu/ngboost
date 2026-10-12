@@ -75,12 +75,12 @@ class MSTLogScore(LogScore):
         #     ( 
         #         ( 2 * df_d * MSTLogScore.M(MSTLogScore.scalar_r,1,4,1) - df_d * MSTLogScore.M(MSTLogScore.scalar_r,1,2,1) + \
         #          np.sqrt(df_d) * (MSTLogScore.M(MSTLogScore.scalar_r,MSTLogScore.scalar_r,5,1) - MSTLogScore.M(MSTLogScore.scalar_r,MSTLogScore.scalar_r,3,1)) * np.linalg.norm(eta_bar_val)) * \
-        #          np.matmul(np.matmul(self.eta, np.transpose(Upsilon_val.flatten('F'))), duplication_val) + \
+        #          np.matmul(np.matmul(self.eta, np.transpose(Upsilon_val.reshape([n_obs,self.d**2]))), duplication_val) + \
         #         (2 * MSTLogScore.M(MSTLogScore.scalar_r,1,2,3) + (1 / np.sqrt(df_d)) * MSTLogScore.M(MSTLogScore.scalar_r, MSTLogScore.scalar_r, 3,3) * np.linalg.norm(eta_bar_val)) * \
         #         np.matmul((np.kron(Upsilonbar_val, np.transpose(self.eta)) + np.kron(np.transpose(self.eta), Upsilonbar_val)+ \
         #          np.matmul(self.eta, np.transpose(Upsilonbar_val.flatten("F")))), duplication_val) - (MSTLogScore.M(MSTLogScore.scalar_r,1,0,3) + (1 / np.sqrt(df_d)) * \
         #         np.linalg.norm(eta_bar_val) * MSTLogScore.M(MSTLogScore.scalar_r, MSTLogScore.scalar_r,1,3))* \
-        #             np.matmul(np.matmul(self.eta, np.transpose(Upsilonbar_val.flatten('F'))),duplication_val)
+        #             np.matmul(np.matmul(self.eta, np.transpose(Upsilonbar_val.reshape([n_obs,self.d**2]))),duplication_val)
         #     )
         F_xi_eta = (2 * np.sqrt( (df_d) / (df_d - 1) ) * ( MSTLogScore.b(self,self.df) / (MSTLogScore.b(self,df_d - 1)) ) * \
                     (df_d * MSTLogScore.M(self, MSTLogScore.scalar_r,1,2,1) - \
@@ -97,24 +97,24 @@ class MSTLogScore(LogScore):
         # F_v_omega_v_omega = 0.5 * np.matmul(np.transpose(duplication_val) ,
         #                                      np.matmul(
         #                                          (df_d / (df_d + 2)) * np.kron(precision_val,precision_val)) - \
-        #                                             (1 / (df_d + 2)) * np.outer(precision_val.flatten('F'), precision_val.flatten('F'))
+        #                                             (1 / (df_d + 2)) * np.outer(precision_val.reshape([n_obs,self.d**2]), precision_val.reshape([n_obs,self.d**2]))
         #                                               , duplication_val) + \
         #                     0.5 * (np.linalg.norm(eta_bar_val) ** 2) * np.matmul(np.transpose(duplication_val),
-        #                         np.matmul(df_d * MSTLogScore.M(MSTLogScore.scalar_r, MSTLogScore.scalar_r, 6, 0) * np.outer(Upsilon_val.flatten('F'), Upsilon_val.flatten('F')) + \
+        #                         np.matmul(df_d * MSTLogScore.M(MSTLogScore.scalar_r, MSTLogScore.scalar_r, 6, 0) * np.outer(Upsilon_val.reshape([n_obs,self.d**2]), Upsilon_val.reshape([n_obs,self.d**2])) + \
         #                             (df_d / (df_d - 1)) * MSTLogScore.M(MSTLogScore.scalar_r, MSTLogScore.scalar_r,4,2) * (2 * np.kron(Upsilonbar_val,Upsilon_val) + \
         #                             2 * np.kron(Upsilon_val,Upsilonbar_val) + \
-        #                             np.matmul(Upsilon_val.flatten('F'), np.transpose(Upsilonbar_val.flatten('F'))) + \
-        #                             np.matmul(Upsilonbar_val.flatten('F'), np.transpose(Upsilon_val.flatten('F')))) + \
+        #                             np.matmul(Upsilon_val.reshape([n_obs,self.d**2]), np.transpose(Upsilonbar_val.reshape([n_obs,self.d**2]))) + \
+        #                             np.matmul(Upsilonbar_val.reshape([n_obs,self.d**2]), np.transpose(Upsilon_val.reshape([n_obs,self.d**2])))) + \
         #                             (df_d / ((df_d + 1) * (df_d - 1))) * MSTLogScore.M(MSTLogScore.scalar_r, MSTLogScore.scalar_r,2,4) * \
-        #                             (2 * np.kron(Upsilonbar_val,Upsilonbar_val) + np.outer(Upsilonbar_val.flatten('F'), Upsilonbar_val.flatten('F')))
+        #                             (2 * np.kron(Upsilonbar_val,Upsilonbar_val) + np.outer(Upsilonbar_val.reshape([n_obs,self.d**2]), Upsilonbar_val.reshape([n_obs,self.d**2])))
         #                         , duplication_val)
         #                     )
 
-        # F_v_omega_eta = df_d * MSTLogScore.M(MSTLogScore.scalar_r,MSTLogScore.scalar_r,4,0)* \
-        #                 np.matmul(np.transpose(duplication_val), np.matmul(Upsilon_val.flatten('F'), np.transpose(self.eta)), disp_val) + \
-        #                 (df_d / (df_d - 1)) * MSTLogScore.M(MSTLogScore.scalar_r,MSTLogScore.scalar_r,2,2) * np.matmul(np.matmul(np.transpose(duplication_val),
-        #                                                                             np.kron(Upsilonbar_val, self.eta) + np.kron(self.eta,Upsilonbar_val) + \
-        #                                                                                 np.matmul(Upsilonbar_val.flatten('F'), np.transpose(self.eta))) , disp_val)
+        F_v_omega_eta = (df_d * MSTLogScore.M(self,MSTLogScore.scalar_r,MSTLogScore.scalar_r,4,0))[:,None,None] * \
+                        (np.transpose(duplication_val,[0,2,1]) @ (np.einsum('ij,ik -> ijk', Upsilon_val.reshape([n_obs,self.d**2]), self.eta) @ disp_val)) + \
+                        ((df_d / (df_d - 1)) * MSTLogScore.M(self,MSTLogScore.scalar_r,MSTLogScore.scalar_r,2,2))[:,None,None] * (np.transpose(duplication_val,[0,2,1]) @
+                                                                                    (MSTLogScore.elementwise_kronecker(Upsilonbar_val, self.eta[:,:,None]) + MSTLogScore.elementwise_kronecker(self.eta[:,:,None],Upsilonbar_val) + \
+                                                                                        np.einsum('ij,ik -> ijk', Upsilonbar_val.reshape([n_obs,self.d**2]), self.eta)) @ disp_val)
 
         F_v_omega_nu = (-0.25 * (df_d / (df_d + 2) + MSTLogScore.psi_diff(self.df / 2 , (df_d + 2) / 2) - MSTLogScore.psi_diff( (df_d + 1) / 2, self.df / 2)))[:,None] * \
                         np.einsum('ijk,ik -> ij',np.transpose(duplication_val,[0,2,1]) , precision_val.reshape([n_obs,self.d**2])) - \
@@ -142,7 +142,7 @@ class MSTLogScore(LogScore):
         #                        [F_xi_eta, F_v_omega_eta, F_eta_eta, F_eta_nu],
         #                        [F_xi_nu, F_v_omega_nu, F_eta_nu, [F_nu_nu]]])
 
-        return F_v_omega_nu
+        return F_v_omega_eta
 
     ## Aux functions 
 
