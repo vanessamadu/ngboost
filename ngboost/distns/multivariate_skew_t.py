@@ -157,41 +157,56 @@ class MSTLogScore(LogScore):
         """
         return np.sqrt(MSTLogScore.VQ(self, y)) * np.einsum('ij,ij -> i', self.eta, y-self.loc)
 
-    def q2(self, y):
-        """
-        output      [N,]
-        """
-        return MSTLogScore.q(self,y) * np.sqrt( (self.df + self.d + 2) / (self.df + 2))
+    # def q2(self, y):
+    #     """
+    #     output      [N,]
+    #     """
+    #     return MSTLogScore.q(self,y) * np.sqrt( (self.df + self.d + 2) / (self.df + 2))
 
+    def scalar_T(self, q_val, df_val):
+        return t.cdf(q_val, loc = 0, scale = 1, df = df_val + self.d)
+    
     def T(self, y):
         """
         output      [N,]
         """
-        return np.array([t.cdf(q_val, loc = 0, scale = 1, df = df_val + self.d) for q_val,df_val in zip(MSTLogScore.q(self,y),self.df)]) 
+        return np.array([MSTLogScore.scalar_T(self, q_val, df_val) for q_val,df_val in zip(MSTLogScore.q(self,y),self.df)]) 
+
+    def scalar_r(self, q_val, df_val):
+        return t.pdf(q_val, loc = 0, scale = 1, df = df_val + self.d) / MSTLogScore.scalar_T(self, q_val, df_val)
 
     def r(self,y):
         """
         output      [N,]
         """
-        return np.array([t.pdf(q_val, loc = 0, scale = 1, df = df_val + self.d) for q_val,df_val in zip(MSTLogScore.q(self,y),self.df)]) / MSTLogScore.T(self,y)
+        return np.array([MSTLogScore.scalar_r(self, q_val, df_val) for q_val,df_val in zip(MSTLogScore.q(self,y),self.df)])
 
+    def scalar_B(self,q_val,df_val):
+        def integrand(df_val,d):
+            return lambda x: t.pdf(x, df = df_val + d) * np.log(1 + x**2 / (df_val + d))
+        return integrate.quad(integrand(df_val,self.d),-np.inf, q_val)[0]
+    
     def B(self,y):
         """
         output      [N,]
         """
-
-        q_val = MSTLogScore.q(self,y)
         def integrand(df_val,d):
             return lambda x: t.pdf(x, df = df_val + d) *  np.log(1 + x**2 / (df_val + d))
         vectorised_quad = np.vectorize(lambda b,df_val : integrate.quad(integrand(df_val,self.d), -np.inf, b)[0])
-    
-        return vectorised_quad(q_val,self.df)
+        return vectorised_quad(MSTLogScore.q(self,y),self.df)
 
+    def scalar_T2bar(self, q_val, df_val):
+        q2_val = q_val * np.sqrt( (df_val + self.d + 2) / (df_val + 2) )
+        return MSTLogScore.scalar_T(self, q2_val, df_val + 2) / MSTLogScore.scalar_T(self, q_val, df_val)
+    
     def T2bar(self,y):
         """
         output      [N,]
         """
-        return  np.array([t.cdf(q2_val, loc = 0, scale = 1, df = df_val + self.d + 2) for q2_val, df_val in zip(MSTLogScore.q2(self,y),self.df)]) / MSTLogScore.T(self,y)
+        return  np.array([MSTLogScore.scalar_T2bar(self, q_val, df_val) for q_val, df_val in zip(MSTLogScore.q(self,y),self.df)])
+
+    def scalar_Bbar(self, q_val, df_val):
+        return MSTLogScore.scalar_B(self, q_val, df_val) / MSTLogScore.scalar_T(self, q_val, df_val)
 
     def Bbar(self,y):
         """
@@ -217,6 +232,7 @@ class MSTLogScore(LogScore):
     @staticmethod
     def elementwise_kronecker(A,B):
         return np.array([np.kron(elem1,elem2) for elem1,elem2 in zip(A,B)])
+    
     ## Fisher aux functions
 
     @staticmethod
@@ -227,31 +243,24 @@ class MSTLogScore(LogScore):
 
     def M(self, g, h, i , j , k = 0):
 
-        """ VECTORISATION TO BE FIXED """
-
-        a_eta_bar_nu_val = MSTLogScore.a_eta_bar_nu(self)
-
         if g == 1:
-           g = lambda self, x : 1
+           g = lambda self, x, df_val : 1
         if h == 1:
-            h = lambda self, x : 1
+            h = lambda self, x, df_val : 1
 
-        g_val = lambda W1_val : g(self, a_eta_bar_nu_val * W1_val)
-        h_val = lambda W1_val : h(self, a_eta_bar_nu_val * W1_val)
-
-        rv_function = lambda W1_val, df_val, a_eta_bar_nu_val : (g(self, a_eta_bar_nu_val * W1_val) * h(self, a_eta_bar_nu_val * W1_val)) * \
+        rv_function = lambda W1_val, df_val, a_eta_bar_nu_val : (g(self, a_eta_bar_nu_val * W1_val, df_val) * h(self, a_eta_bar_nu_val * W1_val, df_val)) * \
             t.cdf(a_eta_bar_nu_val * W1_val, df = df_val) * (W1_val ** i) * (1 - W1_val ** 2) ** (j / 2) * \
             np.log(1 - W1_val) ** k
 
         return MSTLogScore.pearson2_expectation(self, rv_function)
 
-def pearson2_expectation(self, rv_function = lambda x, df_val, a_eta_bar_nu_val : x):
+    def pearson2_expectation(self, rv_function = lambda x, df_val, a_eta_bar_nu_val : x):
 
-    def integrand(df_val, a_eta_bar_nu_val, d):
-        return lambda x: rv_function(x, df_val, a_eta_bar_nu_val) * MSTLogScore.pearson2_pdf(x, 1/2, ( df_val + d - 1 ) / 2)
-    vectorised_quad = np.vectorize(lambda df_val, a_eta_bar_nu_val : integrate.quad(integrand(df_val,a_eta_bar_nu_val,self.d), -1, 1)[0])
+        def integrand(df_val, a_eta_bar_nu_val, d):
+            return lambda x: rv_function(x, df_val, a_eta_bar_nu_val) * MSTLogScore.pearson2_pdf(x, 1/2, ( df_val + d - 1 ) / 2)
+        vectorised_quad = np.vectorize(lambda df_val, a_eta_bar_nu_val : integrate.quad(integrand(df_val,a_eta_bar_nu_val,self.d), -1, 1)[0])
 
-    return vectorised_quad(self.df, MSTLogScore.a_eta_bar_nu(self))
+        return vectorised_quad(self.df, MSTLogScore.a_eta_bar_nu(self))
 
     def eta_bar(self):
         """
