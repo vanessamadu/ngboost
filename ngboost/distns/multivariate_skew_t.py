@@ -67,7 +67,7 @@ class MSTLogScore(LogScore):
 
         F_xi_xi = ( (df_d) / (df_d + 2) )[:,None,None] * precision_val + \
                     (( 2 / (df_d + 1)) * ( (df_d) / (df_d - 1)) * MSTLogScore.M(self, MSTLogScore.scalar_r, MSTLogScore.scalar_r, 2, 4))[:,None,None] * \
-                        ((np.linalg.norm(eta_bar_val)**2) * precision_val - np.einsum('ij,ik -> ijk',self.eta, self.eta)) + \
+                        ((np.linalg.norm(eta_bar_val,axis=1)**2)[:,None,None] * precision_val - np.einsum('ij,ik -> ijk',self.eta, self.eta)) + \
                     ((2 * (df_d) / (df_d -1 )) * MSTLogScore.M(self, MSTLogScore.scalar_r, MSTLogScore.scalar_r, 0, 6))[:,None,None] * np.einsum('ij,ik -> ijk', self.eta, self.eta)
 
         # F_xi_v_omega = np.sqrt( (df_d) / (df_d - 1) ) * ( self.b(self.df) / (self.b(df_d - 1)) ) * \
@@ -125,8 +125,8 @@ class MSTLogScore(LogScore):
         # F_eta_eta = 2 * df_d * self.M(self.r, self.r,2,0) * np.matmul(disp_val, np.matmul(Upsilon_val, disp_val)) + \
         #             2 * (df_d / (df_d - 1)) * self.M(self.r, self.r,0,2) * np.matmul(disp_val, np.matmul(Upsilonbar_val, disp_val))
 
-        # F_eta_nu = - np.sqrt(df_d) * ( (df_d / (df_d - 1)) * self.M(self.r,self.T2bar, 1,2) + self.M(self.r, self.Bbar,1,0)) * \
-        #             np.matmul(disp_val, self.eta) / np.linalg.norm(eta_bar_val)
+        F_eta_nu = (- np.sqrt(df_d) * ( (df_d / (df_d - 1)) * MSTLogScore.M(self, MSTLogScore.scalar_r, MSTLogScore.scalar_T2bar, 1,2) + MSTLogScore.M(self, MSTLogScore.scalar_r, MSTLogScore.scalar_Bbar,1,0)))[:,None,None] * \
+                    np.einsum('ijk,ik -> ij', disp_val, self.eta) / np.linalg.norm(eta_bar_val, axis=1)[:,None,None]
 
         # F_nu_nu = 0.5 * (((self.df + 2) / self.df) * ((df_d**2)/( (df_d + 1) * (df_d - 1))) * self.M(self.T2bar, self.T2bar, 0 ,4) + self.M(self.Bbar,self.Bbar,0,0) + \
         #                  (2 * df_d / (df_d - 1)) * self.M(self.T2bar, self.Bbar,0,2) ) + \
@@ -140,7 +140,7 @@ class MSTLogScore(LogScore):
         #                        [F_xi_eta, F_v_omega_eta, F_eta_eta, F_eta_nu],
         #                        [F_xi_nu, F_v_omega_nu, F_eta_nu, [F_nu_nu]]])
 
-        return F_xi_xi
+        return F_eta_nu
 
     ## Aux functions 
 
