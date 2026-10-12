@@ -134,8 +134,10 @@ class MSTLogScore(LogScore):
         F_eta_eta = (2 * df_d * MSTLogScore.M(self, MSTLogScore.scalar_r, MSTLogScore.scalar_r,2,0))[:,None,None] * (disp_val @ (Upsilon_val @ disp_val)) + \
                     (2 * (df_d / (df_d - 1)) * MSTLogScore.M(self, MSTLogScore.scalar_r, MSTLogScore.scalar_r,0,2))[:,None,None] * (disp_val @ (Upsilonbar_val @ disp_val))
 
-        F_eta_nu = (- np.sqrt(df_d) * ( (df_d / (df_d - 1)) * MSTLogScore.M(self, MSTLogScore.scalar_r, MSTLogScore.scalar_T2bar, 1,2) + MSTLogScore.M(self, MSTLogScore.scalar_r, MSTLogScore.scalar_Bbar,1,0)))[:,None,None] * \
-                    np.einsum('ijk,ik -> ij', disp_val, self.eta) / np.linalg.norm(eta_bar_val, axis=1)[:,None,None]
+        F_eta_nu = (- np.sqrt(df_d) * ( 
+                                        (df_d / (df_d - 1)) * MSTLogScore.M(self, MSTLogScore.scalar_r, MSTLogScore.scalar_T2bar, 1,2) + \
+                                        MSTLogScore.M(self, MSTLogScore.scalar_r, MSTLogScore.scalar_Bbar,1,0) ) )[:,None] * \
+                    np.einsum('ijk,ik -> ij', disp_val, self.eta) / (np.linalg.norm(eta_bar_val, axis=1)[:,None])
 
         F_nu_nu = 0.5 * (((self.df + 2) / self.df) * ((df_d**2)/( (df_d + 1) * (df_d - 1))) * MSTLogScore.M(self, MSTLogScore.scalar_T2bar, MSTLogScore.scalar_T2bar, 0 ,4) + MSTLogScore.M(self, MSTLogScore.scalar_Bbar,MSTLogScore.scalar_Bbar,0,0) + \
                          (2 * df_d / (df_d - 1)) * MSTLogScore.M(self, MSTLogScore.scalar_T2bar, MSTLogScore.scalar_Bbar,0,2) ) + \
@@ -144,12 +146,28 @@ class MSTLogScore(LogScore):
                            MSTLogScore.psi_diff(self.df / 2, df_d / 2) - MSTLogScore.psi_diff((df_d - 1) / 2, (self.df) / 2) * MSTLogScore.psi_diff((df_d - 1) / 2, (df_d) / 2)) - \
                     0.25 * (MSTLogScore.psi_diff( (df_d + 1) / 2 , self.df / 2) + 1) ** 2
 
-        # FisherInfo = np.block([[F_xi_xi , F_xi_v_omega, F_xi_eta, F_xi_nu],
-        #                        [F_xi_v_omega, F_v_omega_v_omega, F_v_omega_eta],
-        #                        [F_xi_eta, F_v_omega_eta, F_eta_eta, F_eta_nu],
-        #                        [F_xi_nu, F_v_omega_nu, F_eta_nu, [F_nu_nu]]])
+        fisher_info_dict = {
+           "F_xi_xi" : F_xi_xi,
+           "F_xi_v_omega" : F_xi_v_omega,
+           "F_xi_eta" : F_xi_eta,
+           "F_xi_nu" : F_xi_nu,
+           "F_v_omega_v_omega" : F_v_omega_v_omega,
+           "F_v_omega_eta" : F_v_omega_eta,
+           "F_v_omega_nu" : F_v_omega_nu,
+           "F_eta_eta" : F_eta_eta,
+           "F_eta_nu" : F_eta_nu,
+           "F_nu_nu" : F_nu_nu
+        }
 
-        return F_xi_v_omega
+        # CONCATENATION NEEDS FIXING
+        FisherInfo = np.block([
+            [F_xi_xi, F_xi_v_omega, np.block([F_xi_eta, F_xi_nu[:,:,None]])],
+            [np.transpose(F_xi_v_omega,[0,2,1]), F_v_omega_v_omega, np.block([F_v_omega_eta, F_v_omega_nu[:,:,None]])],
+            [np.block([[F_xi_eta],[F_xi_nu[:,None,:]]]), np.block([[np.transpose(F_xi_eta,[0,2,1])],[F_v_omega_nu[:,None,:]]]), 
+             np.block([[F_eta_eta, F_eta_nu[:,:,None]],[F_eta_nu[:,None,:], F_nu_nu[:,None,None]]])]
+        ])
+
+        return fisher_info_dict, FisherInfo
 
     ## Aux functions 
 
