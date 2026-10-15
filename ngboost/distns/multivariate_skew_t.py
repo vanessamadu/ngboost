@@ -160,13 +160,9 @@ class MSTLogScore(LogScore):
         # }
 
         row_1 = np.block([F_xi_xi, F_xi_v_omega, F_xi_eta, F_xi_nu[:,:,None]])
-        print(f"row 1: {row_1.shape}")
         row_2 = np.block([np.transpose(F_xi_v_omega,[0,2,1]), F_v_omega_v_omega, F_v_omega_eta, F_v_omega_nu[:,:,None]])
-        print(f"row 2: {row_2.shape}")
         row_3 = np.block([np.transpose(F_xi_eta,[0,2,1]), np.transpose(F_v_omega_eta,[0,2,1]), F_eta_eta, F_eta_nu[:,:,None]])
-        print(f"row 3: {row_3.shape}")
         row_4 = np.block([F_xi_nu[:,None,:], F_v_omega_nu[:,None,:], F_eta_nu[:,None,:], F_nu_nu[:,None,None]])
-        print(f"row 4: {row_4.shape}")
 
         FisherInfo = np.concatenate([row_1,row_2,row_3,row_4],axis=1)
 
