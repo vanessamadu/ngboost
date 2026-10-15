@@ -48,7 +48,7 @@ class MSTLogScore(LogScore):
                         )
         return np.concatenate([grad_loc, grad_v_disp, grad_eta, grad_df[:,None]], axis = 1)
 
-    def metric(self, Y):
+    def metric(self):
 
         """
 
@@ -561,11 +561,8 @@ def MultivariateSkewT(d):
             output      [N,d]
             """
             corr_val = self.corr
-            return np.einsum('ijk,ik -> ij', corr_val,self.skew) / np.sqrt( 1 + 
-                                                                           np.einsum('ij,ij -> i',
-                                                                                     np.einsum('ik,ikj -> ij', self.skew, corr_val),
-                                                                                     self.skew)
-                                                                           )[:, None]
+            return np.einsum('ijk,ik -> ij', corr_val,self.skew) / \
+                np.sqrt( 1 + np.einsum('ij,ij -> i', np.einsum('ik,ikj -> ij', self.skew, corr_val),self.skew))[:, None]
                         
         @property
         def mu(self):
