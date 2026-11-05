@@ -419,11 +419,24 @@ def MultivariateSkewT(d):
             Y       [N,d]
             output  [N,n_params]    
             """
-            d = Y.shape[0]
+            d,N = Y.shape[0]
             n_params = int(1 + d * (d + 5) / 2)
+            params_0 = np.zeros([N,n_params])     # [N,n_params]
 
-            params_0 = None     # [N,n_params]
-            def logpdf_function_and_derivatives(params, Y):
+            def reconstruct_A_rho(v_disp,d,N):
+                                disp_L = np.zeros([N,d,d])
+                                rows, cols = np.tril_indices(d) 
+                                disp_L[:,rows,cols] = v_disp.reshape([-1,int(d*(d-1)/2)])
+                                disp = disp_L + np.triu(np.transpose(disp_L,[0,2,1]),k=1)
+                                ### find A and rho from disp
+                                Omega_inv = np.linalg.inv(disp)
+                                L = np.linalg.cholesky(Omega_inv)
+                                diagL = np.diag(L)
+                                A = L / diagL[np.newaxis, :]
+                                rho = np.log(diagL)
+                                return A, rho, disp
+            
+            def nll_function_and_derivatives(params, Y):
                 # REMEMBER THIS NEEDS TO HAVE THE SIGN REVERSED
                 """
                 Y       [N,d]
@@ -433,18 +446,6 @@ def MultivariateSkewT(d):
                 loc,v_disp,eta,nu_tilde = params
 
                 ### helper functions
-                def reconstruct_A_rho(v_disp,d,N):
-                    disp_L = np.zeros([N,d,d])
-                    rows, cols = np.tril_indices(d) 
-                    disp_L[:,rows,cols] = v_disp.reshape([-1,int(d*(d-1)/2)])
-                    disp = disp_L + np.triu(np.transpose(disp_L,[0,2,1]),k=1)
-                    ### find A and rho from disp
-                    Omega_inv = np.linalg.inv(disp)
-                    L = np.linalg.cholesky(Omega_inv)
-                    diagL = np.diag(L)
-                    A = L / diagL[np.newaxis, :]
-                    rho = np.log(diagL)
-                    return A, rho, disp
                 
                 def duplication(d,N):
                     output = np.zeros([int(d * (d + 1) / 2), d ** 2])
@@ -511,10 +512,19 @@ def MultivariateSkewT(d):
                                                 )
                 logpdf_grad = np.concatenate([grad_loc, grad_v_disp, grad_eta, grad_df[:,None]], axis = 1)
 
-                return logpdf_val, logpdf_grad
+                return -logpdf_val, -logpdf_grad
 
-            mle = minimize(logpdf_function_and_derivatives, params_0, args= (Y), method='BFGS', jac=True)
-    
+            mle = minimize(nll_function_and_derivatives, params_0, args= (Y), method='BFGS', jac=True)
+            loc = np.array(mle[:,:d])
+            v_disp = np.array(mle[:,d:int(2*d + d*(d-1)/2)])
+            eta = np.array(mle[:,int(2*d + d*(d-1)/2):int(d + 2*d + d*(d-1)/2)])
+            nu_tilde = np.array(mle[:,-1])
+
+            A, rho, _ = reconstruct_A_rho(v_disp,d,N)
+            v_star_A = np.tril(A, k=-1)
+
+            return np.concatenate([loc, rho, v_star_A, eta, nu_tilde[:,None]], axis = 1)
+
             # Y_np = np.ascontiguousarray(Y, dtype=np.float64).T
             # n_rows, n_cols = Y_np.shape # works for Y as a [N,d] matrix
 
