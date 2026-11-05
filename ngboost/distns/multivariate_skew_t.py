@@ -423,26 +423,66 @@ def MultivariateSkewT(d):
             n_params = int(1 + d * (d + 5) / 2)
 
             params_0 = None     # [N,n_params]
-            def logpdf_function(params, Y):
+            def logpdf_function_and_derivatives(params, Y):
+                # REMEMBER THIS NEEDS TO HAVE THE SIGN REVERSED
                 """
                 Y       [N,d]
                 output  [N,]
                 """
                 d,N = Y.shape
-                loc,rho,v_star_A,eta,nu_tilde = params
+                loc,v_disp,eta,nu_tilde = params
+
+                ### helper functions
+                def reconstruct_A_rho(v_disp,d,N):
+                    disp_L = np.zeros([N,d,d])
+                    rows, cols = np.tril_indices(d) 
+                    disp_L[:,rows,cols] = v_disp.reshape([-1,int(d*(d-1)/2)])
+                    disp = disp_L + np.triu(np.transpose(disp_L,[0,2,1]),k=1)
+                    ### find A and rho from disp
+                    Omega_inv = np.linalg.inv(disp)
+                    L = np.linalg.cholesky(Omega_inv)
+                    diagL = np.diag(L)
+                    A = L / diagL[np.newaxis, :]
+                    rho = np.log(diagL)
+                    return A, rho, disp
+                
+                def duplication(d,N):
+                    output = np.zeros([int(d * (d + 1) / 2), d ** 2])
+                    for jj in range(d):
+                        for ii in range (jj, d):
+                            u = np.zeros(int(d * (d + 1) / 2))
+                            u[int(jj * d + ii - jj * (jj + 1) / 2)] = 1
+                            T = np.zeros([d, d])
+                            T[ii,jj] = 1
+                            T[jj,ii] = 1
+                            output += np.outer(u, T.flatten('F'))
+                    return  np.array([np.transpose(output) for _ in range(N)])
+
+                def integrand(df_val,d):
+                    return lambda x: t.pdf(x, df = df_val + d) *  np.log(1 + x**2 / (df_val + d))
+
+                vectorised_quad = np.vectorize(lambda b,df_val : integrate.quad(integrand(df_val,d), -np.inf, b)[0])
+
                 ## reconstruct parameters
                 df = nu0 + np.exp(nu_tilde)
-                    ### reconstruct A
-                A = np.eye(d) * np.ones([N,d,d])
-                rows, cols = np.tril_indices(d, k=-1) 
-                A[:,rows,cols] = v_star_A.reshape([-1,int(d*(d-1)/2)])
+                A, rho, disp = reconstruct_A_rho(v_disp,d,N)
 
-                ## Find Q
-                scaled_y0 = np.einsum('ijk,ik -> ij', np.transpose(A,axes=[0,2,1]) , (Y - loc))
+                ## Define aux variables
+
+                Y0 = Y - loc
+                scaled_y0 = np.einsum('ijk,ik -> ij', np.transpose(A,axes=[0,2,1]) , Y0)
                 Q_val = np.einsum('ij,ij -> i', scaled_y0 * np.exp(2 * rho), scaled_y0)
+                precision = (A * np.exp(2 * rho)[:,None,:]) @ np.transpose(A, axes=[0,2,1])
+                VQ_val = (df + d) / (df + Q_val)
+                q_val = np.sqrt(VQ_val) * np.einsum('ij,ij -> i', eta, Y0)
+                r_val = np.array([t.pdf(q, loc = 0, scale = 1, df = df_val + d) / \
+                        t.cdf(q, loc = 0, scale = 1, df = df_val + d) for q,df_val in zip(q_val,df)])
+                duplication_val = duplication(d,N)
+                T2bar = np.array([t.cdf(q * np.sqrt( (df_val + d + 2) / (df_val + 2) ), loc = 0, scale = 1, df = df_val + d + 2) / \
+                                   t.cdf(q, loc = 0, scale = 1, df = df_val + d) for q, df_val in zip(q_val,df)])
+                Bbar = vectorised_quad(q_val,df)/np.array([t.cdf(q, loc = 0, scale = 1, df = df_val + d) for q,df_val in zip(q_val,df)]) 
 
-                ## Calculate terms of logpdf
-                
+                # FIND LOGPDF    
                 term1 = - (d / 2) * np.log(np.pi * df) \
                         + gammaln((df + d) / 2) \
                         - gammaln(df / 2)
@@ -456,16 +496,24 @@ def MultivariateSkewT(d):
                         (df + d) / (df + Q_val) 
                         ) * np.einsum('ik,ik -> i',
                             eta, Y - loc
-                        )
-                , df = df + d))
-                return term1 + term2 + term3 + term4
+                        ), df = df + d))
+                logpdf_val = term1 + term2 + term3 + term4
 
-            def logpdf_derivatives():
-                pass
+                # FIND DERIVATIVES
+                grad_loc = np.einsum('ijk,ik -> ij', precision, (((1 + ( q_val * r_val ) / (df + d)) * VQ_val)[:,None] * Y0))  - \
+                                            (np.sqrt(VQ_val) * r_val)[:,None]  * eta
+                grad_v_disp = 0.5 * np.einsum('ijk,ik -> ij', np.transpose(duplication_val,[0,2,1]) @ MSTLogScore.elementwise_kronecker(precision, precision),
+                                                ( ( ( 1 + q_val * r_val  / (df + d) ) * VQ_val )[:,None,None] * np.einsum('ij,ik -> ijk',Y0,Y0) - disp 
+                                                    ).reshape([N,d ** 2] ) )
+                grad_eta = (np.sqrt(VQ_val) * r_val)[:,None] * Y0
+                grad_df = 0.5 * (digamma( (df + d + 1) / 2 ) - digamma( df / 2 ) + 1 - \
+                                                    (VQ_val * T2bar + Bbar + np.log(1 + Q_val/df))
+                                                )
+                logpdf_grad = np.concatenate([grad_loc, grad_v_disp, grad_eta, grad_df[:,None]], axis = 1)
 
-            mle = minimize(logpdf_function, params_0, args= (Y), method='BFGS', jac=logpdf_derivatives)
+                return logpdf_val, logpdf_grad
 
-            pass
+            mle = minimize(logpdf_function_and_derivatives, params_0, args= (Y), method='BFGS', jac=True)
     
             # Y_np = np.ascontiguousarray(Y, dtype=np.float64).T
             # n_rows, n_cols = Y_np.shape # works for Y as a [N,d] matrix
