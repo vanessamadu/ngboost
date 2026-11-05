@@ -7,6 +7,7 @@ from ngboost.scores import LogScore
 
 from scipy.special import gammaln, digamma, gamma, polygamma, beta
 from scipy.stats import t, multivariate_normal, chi2, multivariate_t
+from scipy.optimize import minimize
 import scipy.integrate as integrate
 import numpy as np
 
@@ -415,10 +416,57 @@ def MultivariateSkewT(d):
         @staticmethod
         def fit(Y):
             """
-            Y       [d,N]
-            output  [n_params,]    
+            Y       [N,d]
+            output  [N,n_params]    
             """
+            d = Y.shape[0]
+            n_params = int(1 + d * (d + 5) / 2)
+
+            params_0 = None     # [N,n_params]
+            def logpdf_function(params, Y):
+                """
+                Y       [N,d]
+                output  [N,]
+                """
+                d,N = Y.shape
+                loc,rho,v_star_A,eta,nu_tilde = params
+                ## reconstruct parameters
+                df = nu0 + np.exp(nu_tilde)
+                    ### reconstruct A
+                A = np.eye(d) * np.ones([N,d,d])
+                rows, cols = np.tril_indices(d, k=-1) 
+                A[:,rows,cols] = v_star_A.reshape([-1,int(d*(d-1)/2)])
+
+                ## Find Q
+                scaled_y0 = np.einsum('ijk,ik -> ij', np.transpose(A,axes=[0,2,1]) , (Y - loc))
+                Q_val = np.einsum('ij,ij -> i', scaled_y0 * np.exp(2 * rho), scaled_y0)
+
+                ## Calculate terms of logpdf
+                
+                term1 = - (d / 2) * np.log(np.pi * df) \
+                        + gammaln((df + d) / 2) \
+                        - gammaln(df / 2)
+                
+                term2 = np.sum(rho,axis=1)
+    
+                term3 = - (df / 2) * (1 + d / df) * np.log(1 + Q_val / df)
+    
+                term4 = np.log(2 * t.cdf(
+                    np.sqrt(
+                        (df + d) / (df + Q_val) 
+                        ) * np.einsum('ik,ik -> i',
+                            eta, Y - loc
+                        )
+                , df = df + d))
+                return term1 + term2 + term3 + term4
+
+            def logpdf_derivatives():
+                pass
+
+            mle = minimize(logpdf_function, params_0, args= (Y), method='BFGS', jac=logpdf_derivatives)
+
             pass
+    
             # Y_np = np.ascontiguousarray(Y, dtype=np.float64).T
             # n_rows, n_cols = Y_np.shape # works for Y as a [N,d] matrix
 
