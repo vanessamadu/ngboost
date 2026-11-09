@@ -419,32 +419,40 @@ def MultivariateSkewT(d):
             Y       [N,d]
             output  [N,n_params]    
             """
-            d,N = Y.shape[0]
-            n_params = int(1 + d * (d + 5) / 2)
-            params_0 = np.zeros([N,n_params])     # [N,n_params]
+            d = Y.shape[0]
+            n_params = int(1 + d * (d + 5) / 2) 
+            params_0 = 2*np.ones(n_params)
+            mask = np.tril(np.ones([d,d])) != 0
+            params_0[d: int(d + d*(d+1)/2)] = (np.eye(d)[mask]).reshape([-1,int(d*(d+1)/2)])
 
-            def reconstruct_A_rho(v_disp,d,N):
-                                disp_L = np.zeros([N,d,d])
-                                rows, cols = np.tril_indices(d) 
-                                disp_L[:,rows,cols] = v_disp.reshape([-1,int(d*(d-1)/2)])
-                                disp = disp_L + np.triu(np.transpose(disp_L,[0,2,1]),k=1)
-                                ### find A and rho from disp
-                                Omega_inv = np.linalg.inv(disp)
-                                L = np.linalg.cholesky(Omega_inv)
-                                diagL = np.diag(L)
-                                A = L / diagL[np.newaxis, :]
-                                rho = np.log(diagL)
-                                return A, rho, disp
+            # def reconstruct_A_rho(v_disp,d):
+            #                     disp_L = np.zeros([d,d])
+            #                     rows, cols = np.tril_indices(d) 
+            #                     disp_L[rows,cols] = v_disp.reshape([-1,int(d*(d+1)/2)])
+            #                     disp = disp_L + np.triu(np.transpose(disp_L),k=1)
+            #                     ### find A and rho from disp
+            #                     Omega_inv = np.linalg.inv(disp)
+            #                     L = np.linalg.cholesky(Omega_inv)
+            #                     diagL = np.diag(L)
+            #                     A = L / diagL
+            #                     rho = np.log(diagL)
+            #                     return A, rho, disp
             
             def nll_function_and_derivatives(params, Y):
-                # REMEMBER THIS NEEDS TO HAVE THE SIGN REVERSED
                 """
-                Y       [N,d]
-                output  [N,]
+                Y       [d]
+                output  []
                 """
-                d,N = Y.shape
-                loc,v_disp,eta,nu_tilde = params
+                d = Y.shape[0]
+                N = 1
+                loc = np.array(params[:d])
+                rho = np.array(params[d:2*d])
+                v_star_A = np.array(params[2*d: int(2*d + d*(d-1)/2)])
+                eta = np.array(params[int(2*d + d*(d-1)/2):int(d + 2*d + d*(d-1)/2)])
+                nu_tilde = np.array(params[-1])
 
+                    # GAH it might not be worth adding the derivatives just for the MLE since I can't do the unconstrained optimisation because I don't have the 
+                    # derivative wrt A and rho.
                 ### helper functions
                 
                 def duplication(d,N):
@@ -465,22 +473,24 @@ def MultivariateSkewT(d):
                 vectorised_quad = np.vectorize(lambda b,df_val : integrate.quad(integrand(df_val,d), -np.inf, b)[0])
 
                 ## reconstruct parameters
+                A = np.eye(d) * np.ones([d,d])
+                rows, cols = np.tril_indices(d, k=-1) 
+                A[rows,cols] = v_star_A.reshape([-1,int(d*(d-1)/2)])
                 df = nu0 + np.exp(nu_tilde)
-                A, rho, disp = reconstruct_A_rho(v_disp,d,N)
 
                 ## Define aux variables
 
                 Y0 = Y - loc
-                scaled_y0 = np.einsum('ijk,ik -> ij', np.transpose(A,axes=[0,2,1]) , Y0)
-                Q_val = np.einsum('ij,ij -> i', scaled_y0 * np.exp(2 * rho), scaled_y0)
+                scaled_y0 = A.T @ Y0
+                Q_val = np.dot(scaled_y0 * np.exp(2 * rho), scaled_y0)
                 precision = (A * np.exp(2 * rho)[:,None,:]) @ np.transpose(A, axes=[0,2,1])
                 VQ_val = (df + d) / (df + Q_val)
                 q_val = np.sqrt(VQ_val) * np.einsum('ij,ij -> i', eta, Y0)
                 r_val = np.array([t.pdf(q, loc = 0, scale = 1, df = df_val + d) / \
-                        t.cdf(q, loc = 0, scale = 1, df = df_val + d) for q,df_val in zip(q_val,df)])
+                       t.cdf(q, loc = 0, scale = 1, df = df_val + d) for q,df_val in zip(q_val,df)])
                 duplication_val = duplication(d,N)
                 T2bar = np.array([t.cdf(q * np.sqrt( (df_val + d + 2) / (df_val + 2) ), loc = 0, scale = 1, df = df_val + d + 2) / \
-                                   t.cdf(q, loc = 0, scale = 1, df = df_val + d) for q, df_val in zip(q_val,df)])
+                                  t.cdf(q, loc = 0, scale = 1, df = df_val + d) for q, df_val in zip(q_val,df)])
                 Bbar = vectorised_quad(q_val,df)/np.array([t.cdf(q, loc = 0, scale = 1, df = df_val + d) for q,df_val in zip(q_val,df)]) 
 
                 # FIND LOGPDF    
@@ -488,81 +498,52 @@ def MultivariateSkewT(d):
                         + gammaln((df + d) / 2) \
                         - gammaln(df / 2)
                 
-                term2 = np.sum(rho,axis=1)
+                term2 = np.sum(rho)
     
                 term3 = - (df / 2) * (1 + d / df) * np.log(1 + Q_val / df)
     
                 term4 = np.log(2 * t.cdf(
                     np.sqrt(
                         (df + d) / (df + Q_val) 
-                        ) * np.einsum('ik,ik -> i',
+                        ) * np.dot(
                             eta, Y - loc
                         ), df = df + d))
                 logpdf_val = term1 + term2 + term3 + term4
 
                 # FIND DERIVATIVES
                 grad_loc = np.einsum('ijk,ik -> ij', precision, (((1 + ( q_val * r_val ) / (df + d)) * VQ_val)[:,None] * Y0))  - \
-                                            (np.sqrt(VQ_val) * r_val)[:,None]  * eta
-                grad_v_disp = 0.5 * np.einsum('ijk,ik -> ij', np.transpose(duplication_val,[0,2,1]) @ MSTLogScore.elementwise_kronecker(precision, precision),
-                                                ( ( ( 1 + q_val * r_val  / (df + d) ) * VQ_val )[:,None,None] * np.einsum('ij,ik -> ijk',Y0,Y0) - disp 
-                                                    ).reshape([N,d ** 2] ) )
+                                             (np.sqrt(VQ_val) * r_val)[:,None]  * eta
+                grad_A = np.triu(-VQ_val * (1 + (np.sqrt(VQ_val) / (df + d)) * np.dot(eta,Y0) * r_val) * (np.diag(np.exp(-2*rho)) @ A) @ np.outer(Y0,Y0))
+                grad_rho = np.diag(((A @ Y0) * (VQ_val + r_val * np.dot(eta,Y0) * (np.sqrt(VQ_val) / (df + Q_val))) ) @ np.diag(np.exp(-2*rho)) - N)
+                # grad_v_disp = 0.5 * np.einsum('ijk,ik -> ij', np.transpose(duplication_val,[0,2,1]) @ MSTLogScore.elementwise_kronecker(precision, precision),
+                #                                 ( ( ( 1 + q_val * r_val  / (df + d) ) * VQ_val )[:,None,None] * np.einsum('ij,ik -> ijk',Y0,Y0) - disp 
+                #                                     ).reshape([N,d ** 2] ) )
                 grad_eta = (np.sqrt(VQ_val) * r_val)[:,None] * Y0
                 grad_df = 0.5 * (digamma( (df + d + 1) / 2 ) - digamma( df / 2 ) + 1 - \
                                                     (VQ_val * T2bar + Bbar + np.log(1 + Q_val/df))
-                                                )
-                logpdf_grad = np.concatenate([grad_loc, grad_v_disp, grad_eta, grad_df[:,None]], axis = 1)
+                                                 )
+                # logpdf_grad = np.concatenate([grad_loc, grad_v_disp, grad_eta, grad_df[:,None]], axis = 1)
 
-                return -logpdf_val, -logpdf_grad
+                return -logpdf_val #,-logpdf_grad
 
-            mle = minimize(nll_function_and_derivatives, params_0, args= (Y), method='BFGS', jac=True)
-            loc = np.array(mle[:,:d])
-            v_disp = np.array(mle[:,d:int(2*d + d*(d-1)/2)])
-            eta = np.array(mle[:,int(2*d + d*(d-1)/2):int(d + 2*d + d*(d-1)/2)])
-            nu_tilde = np.array(mle[:,-1])
+            mle = minimize(nll_function_and_derivatives, params_0, args= (Y), method='BFGS', options={'disp':True,'gtol':1e-3}) # looks like mle might need to be vectorised
 
-            A, rho, _ = reconstruct_A_rho(v_disp,d,N)
-            v_star_A = np.tril(A, k=-1)
+            # loc = np.array(mle[:,:d])
+            # v_disp = np.array(mle[:,d:int(2*d + d*(d-1)/2)])
+            # eta = np.array(mle[:,int(2*d + d*(d-1)/2):int(d + 2*d + d*(d-1)/2)])
+            # nu_tilde = np.array(mle[:,-1])
 
-            return np.concatenate([loc, rho, v_star_A, eta, nu_tilde[:,None]], axis = 1)
+            # A, rho, _ = reconstruct_A_rho(v_disp,d)
+            # v_star_A = np.tril(A, k=-1)
 
-            # Y_np = np.ascontiguousarray(Y, dtype=np.float64).T
-            # n_rows, n_cols = Y_np.shape # works for Y as a [N,d] matrix
-
-            # #                 # Explicitly construct an R matrix (column-major order)
-            # r_matrix = robjects.r['matrix'](
-            #     robjects.FloatVector(Y_np.ravel(order='F')), 
-            #     nrow=n_rows, 
-            #     ncol=n_cols
-            #     )
-
-            # robjects.r.assign("Y_mat", r_matrix)
-            # fit = robjects.r('sn::selm(Y_mat ~ 1, family = "ST")')
-            # dp = robjects.r['slot'](fit,"param").rx2('dp')
+            return mle #np.concatenate([loc, rho, v_star_A, eta, nu_tilde[:,None]], axis = 1)
 
 
-            # # Extract parameter list (dp: direct parameters xi, Omega, alpha, nu)
-            # xi = np.squeeze(np.array(dp.rx2('beta')) if 'beta' in dp.names else np.array(dp.rx2('xi')))
-            # disp = np.array(dp.rx2('Omega'))
-            # skew = np.array(dp.rx2('alpha'))
-            # df = float(np.array(dp.rx2('nu'))[0])
-
-            # #             # find A and rho from disp
-            # Omega_inv = np.linalg.inv(disp)
-            # L = np.linalg.cholesky(Omega_inv)
-            # diagL = np.diag(L)
-            # A = L / diagL[np.newaxis, :]
-            # rho = np.log(diagL)
-
-            # eta = skew 
             # if df <= nu0:
             #     nu_tilde = 1e-5  # set to small value if fit degrees of freedom is less than nu0
             # else:
             #     nu_tilde = np.log(df - nu0) 
 
-            # mask = np.tril(A, k=-1) != 0
-            # v_star_A = A[mask]
-
-            # return np.concatenate([xi, rho, v_star_A, eta, [nu_tilde]])
         
         def rv(self):
             """
