@@ -424,19 +424,6 @@ def MultivariateSkewT(d):
             params_0 = 2*np.ones(n_params)
             mask = np.tril(np.ones([d,d])) != 0
             params_0[d: int(d + d*(d+1)/2)] = (np.eye(d)[mask]).reshape([-1,int(d*(d+1)/2)])
-
-            # def reconstruct_A_rho(v_disp,d):
-            #                     disp_L = np.zeros([d,d])
-            #                     rows, cols = np.tril_indices(d) 
-            #                     disp_L[rows,cols] = v_disp.reshape([-1,int(d*(d+1)/2)])
-            #                     disp = disp_L + np.triu(np.transpose(disp_L),k=1)
-            #                     ### find A and rho from disp
-            #                     Omega_inv = np.linalg.inv(disp)
-            #                     L = np.linalg.cholesky(Omega_inv)
-            #                     diagL = np.diag(L)
-            #                     A = L / diagL
-            #                     rho = np.log(diagL)
-            #                     return A, rho, disp
             
             def nll_function_and_derivatives(params, Y):
                 """
@@ -451,14 +438,10 @@ def MultivariateSkewT(d):
                 eta = np.array(params[int(2*d + d*(d-1)/2):int(d + 2*d + d*(d-1)/2)])
                 nu_tilde = np.array(params[-1])
 
-                    # GAH it might not be worth adding the derivatives just for the MLE since I can't do the unconstrained optimisation because I don't have the 
-                    # derivative wrt A and rho.
                 ### helper functions
 
                 def integrand(df_val,d):
                     return lambda x: t.pdf(x, df = df_val + d) *  np.log(1 + x**2 / (df_val + d))
-
-                vectorised_quad = np.vectorize(lambda b,df_val : integrate.quad(integrand(df_val,d), -np.inf, b)[0])
 
                 ## reconstruct parameters
                 A = np.eye(d) * np.ones([d,d])
@@ -471,14 +454,13 @@ def MultivariateSkewT(d):
                 Y0 = Y - loc
                 scaled_y0 = A.T @ Y0
                 Q_val = np.dot(scaled_y0 * np.exp(2 * rho), scaled_y0)
-                precision = (A * np.exp(2 * rho)[:,None,:]) @ np.transpose(A, axes=[0,2,1])
+                precision = (A @ np.diag(np.exp(2 * rho))) @ A.T
                 VQ_val = (df + d) / (df + Q_val)
-                q_val = np.sqrt(VQ_val) * np.einsum('ij,ij -> i', eta, Y0)
-                r_val = np.array([t.pdf(q, loc = 0, scale = 1, df = df_val + d) / \
-                       t.cdf(q, loc = 0, scale = 1, df = df_val + d) for q,df_val in zip(q_val,df)])
-                T2bar = np.array([t.cdf(q * np.sqrt( (df_val + d + 2) / (df_val + 2) ), loc = 0, scale = 1, df = df_val + d + 2) / \
-                                  t.cdf(q, loc = 0, scale = 1, df = df_val + d) for q, df_val in zip(q_val,df)])
-                Bbar = vectorised_quad(q_val,df)/np.array([t.cdf(q, loc = 0, scale = 1, df = df_val + d) for q,df_val in zip(q_val,df)]) 
+                q_val = np.sqrt(VQ_val) * np.dot(eta, Y0)
+                r_val = t.pdf(q_val, loc = 0, scale = 1, df = df + d) / t.cdf(q_val, loc = 0, scale = 1, df = df + d)
+                T2bar = t.cdf(q_val * np.sqrt( (df + d + 2) / (df + 2) ), loc = 0, scale = 1, df = df + d + 2) / t.cdf(q_val, loc = 0, scale = 1, df = df + d)
+                Bbar = integrate.quad(integrand(df,d), -np.inf, q_val)[0]/(t.cdf(q_val, loc = 0, scale = 1, df = df + d)) 
+                D = np.diag(np.exp(-2*rho))
 
                 # FIND LOGPDF    
                 term1 = - (d / 2) * np.log(np.pi * df) \
@@ -498,32 +480,22 @@ def MultivariateSkewT(d):
                 logpdf_val = term1 + term2 + term3 + term4
 
                 # FIND DERIVATIVES
-                grad_loc = np.einsum('ijk,ik -> ij', precision, (((1 + ( q_val * r_val ) / (df + d)) * VQ_val)[:,None] * Y0))  - \
-                                             (np.sqrt(VQ_val) * r_val)[:,None]  * eta
-                grad_A = np.triu(-VQ_val * (1 + (np.sqrt(VQ_val) / (df + d)) * np.dot(eta,Y0) * r_val) * (np.diag(np.exp(-2*rho)) @ A) @ np.outer(Y0,Y0))
-                grad_rho = np.diag(((A @ Y0) * (VQ_val + r_val * np.dot(eta,Y0) * (np.sqrt(VQ_val) / (df + Q_val))) ) @ np.diag(np.exp(-2*rho)) - N)
-                # grad_v_disp = 0.5 * np.einsum('ijk,ik -> ij', np.transpose(duplication_val,[0,2,1]) @ MSTLogScore.elementwise_kronecker(precision, precision),
-                #                                 ( ( ( 1 + q_val * r_val  / (df + d) ) * VQ_val )[:,None,None] * np.einsum('ij,ik -> ijk',Y0,Y0) - disp 
-                #                                     ).reshape([N,d ** 2] ) )
-                grad_eta = (np.sqrt(VQ_val) * r_val)[:,None] * Y0
-                grad_nu_tilde = 0.5 * (digamma( (df + d + 1) / 2 ) - digamma( df / 2 ) + 1 - \
-                                                    (VQ_val * T2bar + Bbar + np.log(1 + Q_val/df))
-                                                 ) * np.exp(nu_tilde)
-                logpdf_grad = np.concatenate([grad_loc, grad_rho, grad_A, grad_eta, grad_nu_tilde[:,None]], axis = 1)
+                grad_loc = (VQ_val + r_val * q_val / (df + Q_val)) * (precision @ Y0) - np.sqrt(VQ_val) * r_val * eta                
+                grad_A = -(VQ_val + r_val * q_val / (df + Q_val)) * np.triu( (D @ A) @ np.outer(Y0,Y0) , k=1)
+                grad_A = grad_A[np.triu(np.ones([d,d]),k=1) != 0]
+                grad_rho = np.diag((VQ_val + r_val * q_val / (df + Q_val)) * D @ np.outer(A @ Y0, A @ Y0) - np.eye(d) * N)
+                grad_eta = np.sqrt(VQ_val) * r_val * Y0
+                grad_nu_tilde = 0.5 * np.exp(nu_tilde) * (
+                    digamma( (df + d + 1) / 2) - digamma( df / 2) + 1 - (VQ_val * T2bar + Bbar + np.log(1 + Q_val / df))
+                )
+           
+                logpdf_grad = np.concatenate([grad_loc, grad_rho, grad_A, grad_eta, [grad_nu_tilde]])
 
                 return -logpdf_val ,-logpdf_grad
 
-            mle = minimize(nll_function_and_derivatives, params_0, args= (Y), method='BFGS', jac = True, options={'disp':True,'gtol':1e-3}) # looks like mle might need to be vectorised
+            mle = minimize(nll_function_and_derivatives, params_0, args= (Y), method='BFGS', jac = True, options={'disp':True,'gtol':1e-6}) # looks like mle might need to be vectorised
 
-            # loc = np.array(mle[:,:d])
-            # v_disp = np.array(mle[:,d:int(2*d + d*(d-1)/2)])
-            # eta = np.array(mle[:,int(2*d + d*(d-1)/2):int(d + 2*d + d*(d-1)/2)])
-            # nu_tilde = np.array(mle[:,-1])
-
-            # A, rho, _ = reconstruct_A_rho(v_disp,d)
-            # v_star_A = np.tril(A, k=-1)
-
-            return mle #np.concatenate([loc, rho, v_star_A, eta, nu_tilde[:,None]], axis = 1)
+            return mle 
 
 
             # if df <= nu0:
