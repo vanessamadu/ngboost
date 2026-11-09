@@ -454,18 +454,6 @@ def MultivariateSkewT(d):
                     # GAH it might not be worth adding the derivatives just for the MLE since I can't do the unconstrained optimisation because I don't have the 
                     # derivative wrt A and rho.
                 ### helper functions
-                
-                def duplication(d,N):
-                    output = np.zeros([int(d * (d + 1) / 2), d ** 2])
-                    for jj in range(d):
-                        for ii in range (jj, d):
-                            u = np.zeros(int(d * (d + 1) / 2))
-                            u[int(jj * d + ii - jj * (jj + 1) / 2)] = 1
-                            T = np.zeros([d, d])
-                            T[ii,jj] = 1
-                            T[jj,ii] = 1
-                            output += np.outer(u, T.flatten('F'))
-                    return  np.array([np.transpose(output) for _ in range(N)])
 
                 def integrand(df_val,d):
                     return lambda x: t.pdf(x, df = df_val + d) *  np.log(1 + x**2 / (df_val + d))
@@ -488,7 +476,6 @@ def MultivariateSkewT(d):
                 q_val = np.sqrt(VQ_val) * np.einsum('ij,ij -> i', eta, Y0)
                 r_val = np.array([t.pdf(q, loc = 0, scale = 1, df = df_val + d) / \
                        t.cdf(q, loc = 0, scale = 1, df = df_val + d) for q,df_val in zip(q_val,df)])
-                duplication_val = duplication(d,N)
                 T2bar = np.array([t.cdf(q * np.sqrt( (df_val + d + 2) / (df_val + 2) ), loc = 0, scale = 1, df = df_val + d + 2) / \
                                   t.cdf(q, loc = 0, scale = 1, df = df_val + d) for q, df_val in zip(q_val,df)])
                 Bbar = vectorised_quad(q_val,df)/np.array([t.cdf(q, loc = 0, scale = 1, df = df_val + d) for q,df_val in zip(q_val,df)]) 
@@ -519,14 +506,14 @@ def MultivariateSkewT(d):
                 #                                 ( ( ( 1 + q_val * r_val  / (df + d) ) * VQ_val )[:,None,None] * np.einsum('ij,ik -> ijk',Y0,Y0) - disp 
                 #                                     ).reshape([N,d ** 2] ) )
                 grad_eta = (np.sqrt(VQ_val) * r_val)[:,None] * Y0
-                grad_df = 0.5 * (digamma( (df + d + 1) / 2 ) - digamma( df / 2 ) + 1 - \
+                grad_nu_tilde = 0.5 * (digamma( (df + d + 1) / 2 ) - digamma( df / 2 ) + 1 - \
                                                     (VQ_val * T2bar + Bbar + np.log(1 + Q_val/df))
-                                                 )
-                # logpdf_grad = np.concatenate([grad_loc, grad_v_disp, grad_eta, grad_df[:,None]], axis = 1)
+                                                 ) * np.exp(nu_tilde)
+                logpdf_grad = np.concatenate([grad_loc, grad_rho, grad_A, grad_eta, grad_nu_tilde[:,None]], axis = 1)
 
-                return -logpdf_val #,-logpdf_grad
+                return -logpdf_val ,-logpdf_grad
 
-            mle = minimize(nll_function_and_derivatives, params_0, args= (Y), method='BFGS', options={'disp':True,'gtol':1e-3}) # looks like mle might need to be vectorised
+            mle = minimize(nll_function_and_derivatives, params_0, args= (Y), method='BFGS', jac = True, options={'disp':True,'gtol':1e-3}) # looks like mle might need to be vectorised
 
             # loc = np.array(mle[:,:d])
             # v_disp = np.array(mle[:,d:int(2*d + d*(d-1)/2)])
@@ -683,5 +670,16 @@ def MultivariateSkewT(d):
         
             return ( self.df / (self.df - 2) )[:,None,None] * self.disp - np.einsum('ij,ik -> ijk', outer_product_term, outer_product_term)
 
+                # def duplication(d,N):
+                #     output = np.zeros([int(d * (d + 1) / 2), d ** 2])
+                #     for jj in range(d):
+                #         for ii in range (jj, d):
+                #             u = np.zeros(int(d * (d + 1) / 2))
+                #             u[int(jj * d + ii - jj * (jj + 1) / 2)] = 1
+                #             T = np.zeros([d, d])
+                #             T[ii,jj] = 1
+                #             T[jj,ii] = 1
+                #             output += np.outer(u, T.flatten('F'))
+                #     return  np.array([np.transpose(output) for _ in range(N)])
     return MST
 
