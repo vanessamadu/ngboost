@@ -419,18 +419,17 @@ def MultivariateSkewT(d):
             Y       [N,d]
             output  [N,n_params]    
             """
-            N,d = Y.shape
+            _,d = Y.shape
             n_params = int(1 + d * (d + 5) / 2) 
             params_0 = np.zeros(n_params)
-            mask = np.tril(np.ones([d,d])) != 0
-            params_0[d: int(d + d*(d+1)/2)] = (np.eye(d)[mask]).reshape([-1,int(d*(d+1)/2)])
+            params_0[d: int(d + d*(d+1)/2)] = (np.eye(d)[np.tril(np.ones([d,d])) != 0]).reshape([-1,int(d*(d+1)/2)])
             
             def nll_function_and_derivatives(params, Y):
                 """
                 Y       [N,d]
                 output  []
                 """
-                N,d = Y.shape
+                _,d = Y.shape
                 loc = np.array(params[:d])
                 rho = np.array(params[d:2*d])
                 v_star_A = np.array(params[2*d: int(2*d + d*(d-1)/2)])
@@ -454,15 +453,13 @@ def MultivariateSkewT(d):
 
                 Y0 = Y - loc
                 scaled_y0 = np.einsum('jk, ik -> ij', A.T , Y0)                                 # [N,d]
-                #A_scaled_y0 = np.einsum('jk, ik -> ij', A , Y0)
                 Q_val = np.einsum('ij,ij -> i', scaled_y0 * np.exp(2 * rho), scaled_y0)         # [N,]
                 precision = (A @ np.diag(np.exp(2 * rho))) @ A.T                                # [d,d]
                 VQ_val = (df + d) / (df + Q_val)                                                # [N,]
                 q_val = np.sqrt(VQ_val) * np.einsum('j,ij -> i', eta, Y0)                       # [N,]
-                r_val = np.exp(np.array([t.logpdf(q,df+d) - t.logcdf(q,df+d) for q in q_val]))
-                T2bar = np.exp(np.array([t.logcdf(q*np.sqrt((df+d+2)/(df+2)), df+d+2) - t.logcdf(q,df+d) for q in q_val])) 
-                Bbar = np.exp(np.log(vectorised_quad(q_val)) - np.array([t.logcdf(q, df+d) for q in q_val]))                                              # [N,]
-                D = np.diag(np.exp(-2*rho))                                                     # [d,d]
+                r_val = np.exp(t.logpdf(q_val,df+d) - t.logcdf(q_val,df+d))
+                T2bar = np.exp(t.logcdf(q_val*np.sqrt((df+d+2)/(df+2)), df+d+2) - t.logcdf(q_val,df+d)) 
+                Bbar = np.exp(np.log(vectorised_quad(q_val)) - t.logcdf(q_val, df+d))      # [N,]    
 
                 # FIND LOGPDF   
                 
@@ -492,10 +489,6 @@ def MultivariateSkewT(d):
                 G = -np.einsum('i,ik,ij->kj', w, Y0, scaled_y0 * e2rho)         # [d,d], summed over N
                 grad_A = G[rows, cols]                                          # [d(d-1)/2], matches param order
                 grad_loc = (VQ_val + r_val * q_val / (df + Q_val))[:,None] * np.einsum('jk, ik -> ij', precision, Y0) - (np.sqrt(VQ_val) * r_val)[:,None] * eta                
-                #grad_A = - (VQ_val + r_val * q_val / (df + Q_val))[:,None,None] * np.triu( (D @ A) @ np.einsum('ij,ik -> ijk',Y0,Y0) , k=1)
-                #grad_A = grad_A[np.triu(np.ones([N,d,d]),k=1) != 0]
-                # grad_rho = ((VQ_val + r_val * q_val / (df + Q_val))[:,None,None] * D 
-                #             @ np.einsum('ij,ik -> ijk', A_scaled_y0, A_scaled_y0) - np.eye(d) * N)[np.identity(d)*np.ones([N,d,d]) != 0].reshape([N,d])
                 grad_eta = (np.sqrt(VQ_val) * r_val)[:,None] * Y0
                 grad_nu_tilde = 0.5 * np.exp(nu_tilde) * (
                    digamma( (df + d + 1) / 2) - digamma( df / 2) + 1 - (VQ_val * T2bar + Bbar + np.log(1 + Q_val / df))
